@@ -95,6 +95,8 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
 .rtable td:last-child{color:var(--muted)}
 .verdict{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .verdict p{margin:4px 0}
+.light[data-s="turn"]{--c:var(--accent)}
+.btn.resume{background:var(--near);color:#1d2129}
 .rec{display:flex;align-items:center;gap:10px;font-size:.92rem;cursor:pointer}
 .rec input{width:20px;height:20px;accent-color:var(--bad)}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--bad);animation:blink 1s infinite}
@@ -150,6 +152,7 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <button class="btn" id="go">Comezar</button>
     <button class="btn ghost" id="reset" hidden>Repetir</button>
   </div>
+  <button class="btn resume" id="resume" hidden>Toca para reactivar o micro</button>
   <label class="rec" for="recon"><input type="checkbox" id="recon"> <span>Gravar o son para envialo a Claude</span><span class="dot" id="recdot" hidden></span></label>
   <div class="sharebox" id="sharebox" hidden>
     <div><b id="shname">Gravación</b><small id="shinfo"></small></div>
@@ -171,6 +174,9 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
       <li>Pon o móbil a 30–60 cm, nunha sala tranquila. Mellor notas tidas ou sirenas lentas ca con texto.</li>
       <li>No agudo admítese que o F1 suba co xiro da voz; na [o] e na [u] avisa se se abren de máis.</li>
       <li>Co tubo na boca non se poden medir as vogais nin a abertura; por iso a comparación usa a intensidade, a afinación e as quebras, e a abertura (F1) mídese despois, na vogal.</li>
+      <li>Luz azul «Xiro»: desde re4, zona de pasaxe, a vogal péchase para xirar e a app non a pode medir con precisión. Non conta como erro, pero escoita que a vogal se siga recoñecendo.</li>
+      <li>Se iso pasa por debaixo de re4, sae en vermello «Vogal pouco definida»: aí si é un erro de posición.</li>
+      <li>Se saes da app e volves, o micro reactívase só; se o navegador o bloquea, aparece un botón para reactivalo.</li>
       <li>Se marcas «Gravar o son», ao parar podes compartir un WAV coa túa voz e un CSV co que mediu a app (nota, F1, F2 e cor) para mandalos a Claude.</li>
       <li>Na pasaxe, sen texto, unha [e] moi escura pode confundirse cunha [a]. Co texto escrito non pasa.</li>
     </ul>
@@ -298,12 +304,13 @@ if (typeof module !== 'undefined') module.exports = Core;
   let mode = store.get("modo", "vogal"); if (!HELP[mode]) mode = "vogal";
   let gateDb = +store.get("gate", "-50");
   let running = false, ctx, an, stream, buf, wake;
-  const hist = { f0: [], f1: [], f2: [] }; let trail = [];
+  const hist = { f0: [], f1: [], f2: [], r1: [], r2: [] }; let trail = [];
   let att = { voiced: 0, ok: 0, silentMs: 0 }, last = 0, curF0 = 0, t0 = 0;
   let frames = [];                 // gravación actual: {t, db, f0, f1, f2, v}
   let tube = { step: 0, a: null, b: null, offset: null, offs: [] };
   let rec = { on: store.get("gravar", "0") === "1", chunks: [], n: 0, node: null, sink: null, files: null, log: [] };
   const REC_MAX_S = 300;
+  const PASS_HZ = 300;   // desde ≈re4: zona de pasaxe do barítono
 
   const noteName = f => { const m = Math.round(69 + 12 * Math.log2(f / 440)); return NOTES[(m % 12 + 12) % 12] + (Math.floor(m / 12) - 1); };
   const semi = f => 69 + 12 * Math.log2(f / 440);
@@ -433,7 +440,12 @@ if (typeof module !== 'undefined') module.exports = Core;
         push(hist.f0, f); fr.f0 = med(hist.f0); curF0 = fr.f0;
         if (mode === "tubo" && tube.step === 1) { fr.v = true; return fr; }   // co tubo: só nota e intensidade
         const fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
-        if (fm) { push(hist.f1, fm.f1); push(hist.f2, fm.f2); fr.f1 = med(hist.f1); fr.f2 = med(hist.f2); fr.v = true; }
+        if (fm) {
+          push(hist.f1, fm.f1); push(hist.f2, fm.f2); push(hist.r1, fm.f1, 6); push(hist.r2, fm.f2, 6);
+          fr.f1 = med(hist.f1); fr.f2 = med(hist.f2); fr.v = true;
+          const sp2 = Math.max(...hist.r2) - Math.min(...hist.r2), mx1 = Math.max(...hist.r1);
+          fr.unst = hist.r2.length >= 4 && (sp2 > 600 || mx1 > 1150 || fr.f1 > fr.f2 * 0.75);
+        } else if (hist.r2.length) { fr.v = true; fr.unst = true; fr.f1 = med(hist.f1); fr.f2 = med(hist.f2); }
       }
     }
     return fr;
@@ -448,7 +460,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (rec.on) rec.log.push(fr);
     if (!fr.v) {
       att.silentMs += dt; setLight("idle");
-      if (att.silentMs > 400) hist.f0.length = hist.f1.length = hist.f2.length = 0;
+      if (att.silentMs > 400) hist.f0.length = hist.f1.length = hist.f2.length = hist.r1.length = hist.r2.length = 0;
       if (att.silentMs > 600 && mode === "vogal") setHint("Canta a vogal", V[vowel].ex);
       return;
     }
@@ -456,6 +468,19 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (mode === "tubo" && tube.step === 1) {
       $("f1").textContent = "—"; $("f2").textContent = "—"; setLight("tube");
       setHint("Gravando co tubo", "Sirena lenta, cómoda. Preme Parar ao rematar"); $("st1v").textContent = noteName(fr.f0) + " · " + Math.round(fr.db) + " dB";
+      return;
+    }
+    fr.vw = mode === "pasaxe" ? null : vowel;
+    if (fr.unst) {
+      $("f1").textContent = "?"; $("f2").textContent = "?"; att.silentMs = 0;
+      if (fr.f0 >= PASS_HZ) {
+        fr.s = "xiro"; setLight("turn");
+        setHint("Xiro · zona de pasaxe", "A vogal péchase para xirar. Escoita que siga soando [" + (mode === "pasaxe" ? "vogal" : vowel) + "]");
+      } else {
+        fr.s = "bad"; setLight("bad");
+        setHint("Vogal pouco definida", "Aínda non é zona de pasaxe: fixa a lingua e os labios");
+        if (mode === "vogal") { att.voiced++; showScore(100 * att.ok / att.voiced); }
+      }
       return;
     }
     $("f1").textContent = Math.round(fr.f1); $("f2").textContent = Math.round(fr.f2);
@@ -472,6 +497,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       }
       $("st2s").textContent = noteName(fr.f0) + " · F1 " + Math.round(fr.f1);
     }
+    fr.vw = v;
     setLight(s, mode === "pasaxe" ? v : null); setHint(tip, mode === "pasaxe" ? "Parece [" + v + "] · " + sub : sub);
     fr.s = s; trail.push({ f1: fr.f1, f2: fr.f2, s }); if (trail.length > 40) trail.shift();
     if (mode === "vogal") {
@@ -512,7 +538,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!A0 || !B0) { $("results").hidden = false; $("results").innerHTML = '<p class="err">Unha das dúas tomas é demasiado curta. Repite a proba.</p>'; return; }
     const clo = Math.max(A0.slo, B0.slo), chi = Math.min(A0.shi, B0.shi), common = chi - clo >= 5;
     const A = common ? stats(tube.a, clo, chi) : A0, B = common ? stats(tube.b, clo, chi) : B0;
-    const vf = tube.b.filter(f => f.v && f.f1);
+    const vf = tube.b.filter(f => f.v && f.f1 && !f.unst);
     const j = vf.map(f => judge(vowel, f.f0, f.f1, f.f2)); const okp = 100 * j.filter(x => x.s === "ok").length / Math.max(1, j.length);
     const f1m = med(vf.map(f => f.f1)), f2m = med(vf.map(f => f.f2));
     const topv = vf.filter(f => semi(f.f0) >= semi(B.lo) + (semi(B.hi) - semi(B.lo)) * .7);
@@ -544,7 +570,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   // ---------- modo pasaxe ----------
   function passageReport() {
-    const vf = frames.filter(f => f.v && f.f1);
+    const vf = frames.filter(f => f.v && f.f1 && !f.unst);
     const seq = textVowels($("ptext").value);
     const R = $("results"); R.hidden = false;
     if (vf.length < 6) { R.innerHTML = '<p class="err">Non se detectou canto suficiente. Achégate ao micro ou baixa a sensibilidade.</p>'; return; }
@@ -596,7 +622,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     catch (e) { setHint('<span class="err">Non se puido abrir o micrófono</span>', "Permite o acceso ao micro no navegador. A páxina ten que abrirse desde https ou localhost."); return false; }
     ctx = new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume();
     an = ctx.createAnalyser(); an.fftSize = 4096; buf = new Float32Array(an.fftSize);
-    const src = ctx.createMediaStreamSource(stream); src.connect(an); rec.src = src;
+    const src = ctx.createMediaStreamSource(stream); src.connect(an); rec.src = src; rec.sr = ctx.sampleRate;
+    stream.getAudioTracks().forEach(t => t.addEventListener("ended", () => { if (running) recover(); }));
+    ctx.addEventListener?.("statechange", () => { if (running && ctx && ctx.state !== "running" && document.visibilityState === "visible") recover(); });
     try { wake = await navigator.wakeLock?.request("screen"); } catch {}
     $("state").textContent = "Escoitando · " + Math.round(ctx.sampleRate / 100) / 10 + " kHz";
     return true;
@@ -604,6 +632,12 @@ if (typeof module !== 'undefined') module.exports = Core;
   function recStart() {
     rec.chunks = []; rec.n = 0; rec.log = []; rec.files = null; $("sharebox").hidden = true; $("shalt").hidden = true;
     if (!rec.on || !ctx || !rec.src) return;
+    recAttach();
+    rec.t0 = t0; rec.mode = mode; rec.vowel = vowel; rec.date = new Date(); $("recdot").hidden = false;
+  }
+  function recAttach() {
+    if (!rec.on || !ctx || !rec.src) return;
+    try { rec.node?.disconnect(); } catch {}
     rec.node = ctx.createScriptProcessor(4096, 1, 1); rec.sink = ctx.createGain(); rec.sink.gain.value = 0;
     rec.node.onaudioprocess = e => {
       if (!running || rec.n > REC_MAX_S * ctx.sampleRate) return;
@@ -612,14 +646,13 @@ if (typeof module !== 'undefined') module.exports = Core;
       rec.chunks.push(q); rec.n += q.length;
     };
     rec.src.connect(rec.node); rec.node.connect(rec.sink); rec.sink.connect(ctx.destination);
-    rec.t0 = t0; rec.mode = mode; rec.vowel = vowel; rec.date = new Date(); $("recdot").hidden = false;
   }
   function recStop() {
     $("recdot").hidden = true;
     if (!rec.node) return;
     try { rec.src.disconnect(rec.node); rec.node.disconnect(); rec.sink.disconnect(); } catch {}
     rec.node = null;
-    const sr = ctx ? ctx.sampleRate : 48000;
+    const sr = rec.sr || (ctx ? ctx.sampleRate : 48000);
     if (rec.n < sr * 0.5) return;
     const data = new Int16Array(rec.n); let o = 0; for (const c of rec.chunks) { data.set(c, o); o += c.length; }
     const hdr = new DataView(new ArrayBuffer(44)), w = (p, str) => [...str].forEach((ch, i) => hdr.setUint8(p + i, ch.charCodeAt(0)));
@@ -627,9 +660,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     hdr.setUint16(20, 1, true); hdr.setUint16(22, 1, true); hdr.setUint32(24, sr, true); hdr.setUint32(28, sr * 2, true);
     hdr.setUint16(32, 2, true); hdr.setUint16(34, 16, true); w(36, "data"); hdr.setUint32(40, data.byteLength, true);
     const d = rec.date, pad = x => String(x).padStart(2, "0");
-    const base = `vogais-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${rec.mode}${rec.mode === "pasaxe" ? "" : "-" + rec.vowel}`;
-    const lines = ["t_s,db,f0_hz,nota,f1_hz,f2_hz,cor"].concat(rec.log.map(f => [(f.t / 1000).toFixed(2), f.db.toFixed(1), f.f0 ? f.f0.toFixed(1) : "", f.f0 ? noteName(f.f0) : "", f.f1 ? Math.round(f.f1) : "", f.f2 ? Math.round(f.f2) : "", f.s || (f.v ? "tubo" : "silencio")].join(",")));
-    const meta = `# modo=${rec.mode}; vogal=${rec.vowel}; texto=${(rec.mode === "pasaxe" ? $("ptext").value : "").replace(/[,\n]/g, " ")}; frecuencia=${sr}`;
+
+    const used = [...new Set(rec.log.map(f => f.vw).filter(Boolean))];
+    const lines = ["t_s,db,f0_hz,nota,f1_hz,f2_hz,vogal,cor"].concat(rec.log.map(f => [(f.t / 1000).toFixed(2), f.db.toFixed(1), f.f0 ? f.f0.toFixed(1) : "", f.f0 ? noteName(f.f0) : "", f.f1 ? Math.round(f.f1) : "", f.f2 ? Math.round(f.f2) : "", f.vw || "", f.s || (f.v ? "tubo" : "silencio")].join(",")));
+
+    const vtag = rec.mode === "pasaxe" ? "" : "-" + (used.length > 1 ? used.join("") : (used[0] || rec.vowel));
+    const base = `vogais-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${rec.mode}${vtag}`;
+    const meta = `# modo=${rec.mode}; vogais=${used.join(" ") || rec.vowel}; texto=${(rec.mode === "pasaxe" ? $("ptext").value : "").replace(/[,\n]/g, " ")}; frecuencia=${sr}`;
     rec.files = [new File([hdr.buffer, data.buffer], base + ".wav", { type: "audio/wav" }), new File([meta + "\n" + lines.join("\n")], base + ".csv", { type: "text/csv" })];
     $("shname").textContent = base + ".wav"; $("shinfo").textContent = (rec.n / sr).toFixed(1) + " s · " + (data.byteLength / 1048576).toFixed(1) + " MB + datos";
     $("sharebox").hidden = false;
@@ -644,9 +681,27 @@ if (typeof module !== 'undefined') module.exports = Core;
     alt.hidden = false;
   }
 
+  let recovering = false;
+  async function recover() {
+    if (!running || recovering) return; recovering = true;
+    try {
+      const live = stream && stream.getAudioTracks().some(t => t.readyState === "live");
+      if (live && ctx && ctx.state !== "closed") { try { await ctx.resume(); } catch {} }
+      if (!live || !ctx || ctx.state === "closed") {
+        try { stream?.getTracks().forEach(t => t.stop()); ctx?.close(); } catch {}
+        stream = null; ctx = null;
+        if (await openMic()) { recAttach(); hist.f0.length = hist.f1.length = hist.f2.length = hist.r1.length = hist.r2.length = 0; }
+      }
+      const ok = ctx && ctx.state === "running" && stream && stream.getAudioTracks().some(t => t.readyState === "live");
+      $("resume").hidden = ok;
+      if (ok) { $("state").textContent = "Escoitando · " + Math.round(ctx.sampleRate / 100) / 10 + " kHz"; last = performance.now(); requestAnimationFrame(tick); }
+      else setHint("Micro en pausa", "Toca o botón amarelo para reactivalo");
+    } finally { recovering = false; }
+  }
+
   async function start() {
     if (!(await openMic())) return;
-    running = true; frames = []; trail = []; hist.f0.length = hist.f1.length = hist.f2.length = 0;
+    running = true; frames = []; trail = []; hist.f0.length = hist.f1.length = hist.f2.length = hist.r1.length = hist.r2.length = 0;
     att = { voiced: 0, ok: 0, silentMs: 0 }; t0 = last = performance.now();
     $("results").hidden = true; $("go").textContent = "Parar"; recStart();
     if (mode === "vogal") setHint("Canta a vogal", V[vowel].ex);
@@ -690,7 +745,12 @@ if (typeof module !== 'undefined') module.exports = Core;
   $("ptext").value = store.get("ptexto", ""); $("ptext").addEventListener("input", updateSeq);
   const gi = $("gate"); gi.value = gateDb; $("gatev").textContent = "−" + Math.abs(gateDb) + " dB";
   gi.addEventListener("input", () => { gateDb = +gi.value; store.set("gate", gi.value); $("gatev").textContent = "−" + Math.abs(gateDb) + " dB"; });
-  document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && running) { try { wake = await navigator.wakeLock?.request("screen"); } catch {} } });
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && running) { try { wake = await navigator.wakeLock?.request("screen"); } catch {} recover(); }
+  });
+  window.addEventListener("pageshow", () => { if (running) recover(); });
+  window.addEventListener("focus", () => { if (running) recover(); });
+  $("resume").addEventListener("click", async () => { try { await ctx?.resume(); } catch {} recover(); });
   window.addEventListener("resize", fitCanvas);
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", draw);
   setVowel(vowel); setMode(mode); fitCanvas();
