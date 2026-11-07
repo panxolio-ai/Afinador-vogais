@@ -108,6 +108,7 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
 .btn.resume{background:var(--near);color:#1d2129}
 .rec{display:flex;align-items:center;gap:10px;font-size:.92rem;cursor:pointer}
 .rec input{width:20px;height:20px;accent-color:var(--bad)}
+.sdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--muted,#888)}.sdot[data-s=ok]{background:var(--ok)}.sdot[data-s=near]{background:var(--near)}.sdot[data-s=bad]{background:var(--bad)}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--bad);animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.25}}
 .sharebox{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel);border:1.5px solid var(--accent);border-radius:12px;padding:10px 12px}
@@ -186,6 +187,8 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <div class="tablewrap"><table id="ttable"></table></div>
     <ul>
       <li>Zonas calibradas para a túa voz de barítono, a partir das túas gravacións de novembro de 2026.</li>
+      <li><b>Agudo fronte ao centro</b> (Pasaxe e Canción): compara o volume e o <b>anel</b> (enerxía arredor de 3 kHz) desde re4 co teu centro. O modelo é Fischer-Dieskau: ao subir gaña anel (+5 dB) sen gañar volume. En directo avisa se empurras (+7 dB) ou se o son vai cara atrás.</li>
+      <li>A [a] está calibrada máis clara (F2 desde 1050), coma a [a] de Fischer-Dieskau (≈ 1230).</li>
       <li>Funciona mellor ata sol4; por riba, a medida é menos fiable.</li>
       <li>Pon o móbil a 30–60 cm, nunha sala tranquila. Mellor notas tidas ou sirenas lentas ca con texto.</li>
       <li>No agudo admítese que o F1 suba co xiro da voz; na [o] e na [u] avisa se se abren de máis.</li>
@@ -313,7 +316,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 <script>
 (() => {
   const V = {
-    a: { f1: [600, 900], f2: [950, 1350], k: 2.4, ex: "Canta [a] falada, sen redondear" },
+    a: { f1: [600, 900], f2: [1050, 1400], k: 2.4, ex: "Canta [a] falada, clara e diante" },
     e: { f1: [380, 650], f2: [1700, 2150], k: 2.4, ex: "Desde a [i]: bordos da lingua nos molares" },
     i: { f1: [230, 520], f2: [1950, 2600], k: 2.4, ex: "Lingua alta e adiante, labios soltos" },
     o: { f1: [380, 650], f2: [700, 1100], k: 1.6, ex: "Labios redondos, pouca apertura" },
@@ -335,6 +338,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   let running = false, ctx, an, stream, buf, wake;
   const hist = { f0: [], f1: [], f2: [], r1: [], r2: [] }; let trail = [];
   let att = { voiced: 0, ok: 0, silentMs: 0 }, last = 0, curF0 = 0, t0 = 0;
+  let fbuf = null, ctr = { db: [], ring: [] };   // referencia do centro (modelo: o agudo gaña anel, non volume)
   let frames = [];                 // gravación actual: {t, db, f0, f1, f2, v}
   let tube = { step: 0, a: null, b: null, offset: null, offs: [] };
   let rec = { on: store.get("gravar", "0") === "1", chunks: [], n: 0, node: null, sink: null, files: null, log: [] };
@@ -360,7 +364,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       else if (!f2in && v === "e" && f2 > hi) { tip = "Soa case [i]"; sub = "Abre un pouco a mandíbula"; }
       else if (!f2in && (v === "o" || v === "u") && f2 > hi) { tip = "Redondea máis os labios"; sub = "Menos apertura, labios adiante"; }
       else if (!f2in && (v === "o" || v === "u") && f2 < lo) { tip = "Moi escura"; sub = "Adianta un pouco a vogal"; }
-      else if (!f2in && v === "a" && f2 < lo) { tip = "[a] moi redonda"; sub = "Máis [a] falada, sen labios"; }
+      else if (!f2in && v === "a" && f2 < lo) { tip = "[a] escura, cara atrás"; sub = "Máis [a] falada e clara, sen labios"; }
       else if (!f2in && v === "a" && f2 > hi) { tip = "[a] moi aberta cara a [æ]"; sub = "Espazo atrás, lingua solta"; }
       else if (f1 > f1max) { tip = v === "a" ? "Moi aberta: pecha cara a [ɔ]" : "Demasiado aberta"; sub = "Menos mandíbula, máis espazo arriba"; }
       else if (f1 < f1min) { tip = "Moi pechada"; sub = "Abre un pouco"; }
@@ -470,6 +474,32 @@ if (typeof module !== 'undefined') module.exports = Core;
     g.globalAlpha = 1;
   }
 
+  // ---------- anel: enerxía 2,5–3,5 kHz fronte a 80–1500 Hz (dB) ----------
+  function ringDb(sr) {
+    if (!fbuf || fbuf.length !== an.frequencyBinCount) fbuf = new Float32Array(an.frequencyBinCount);
+    an.getFloatFrequencyData(fbuf); const hz = sr / an.fftSize; let a = 0, b = 0;
+    for (let i = Math.ceil(80 / hz); i < fbuf.length && i * hz < 3500; i++) { const p = Math.pow(10, fbuf[i] / 10); if (i * hz >= 2500) a += p; else if (i * hz < 1500) b += p; }
+    return 10 * Math.log10((a + 1e-20) / (b + 1e-20));
+  }
+  const pct = (a, q) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
+  // compara o agudo (desde re4) co centro: volume e anel
+  function topCheck(fs) {
+    const c = fs.filter(f => f.v && f.f0 >= 150 && f.f0 < PASS_HZ && f.ring != null), h = fs.filter(f => f.v && f.f0 >= PASS_HZ && f.ring != null);
+    if (c.length < 15 || h.length < 10) return null;
+    const dDb = pct(h.map(f => f.db), .75) - pct(c.map(f => f.db), .75), dR = med(h.map(f => f.ring)) - med(c.map(f => f.ring));
+    return { dDb, dR, sDb: dDb <= 4 ? "ok" : dDb <= 7 ? "near" : "bad", sR: dR >= 0 ? "ok" : dR >= -6 ? "near" : "bad" };
+  }
+  function topHtml(fs) {
+    const k = topCheck(fs); if (!k) return "";
+    const sg = x => (x >= 0 ? "+" : "−") + Math.abs(Math.round(x));
+    const tDb = k.sDb === "ok" ? "Ben: o agudo non empurra" : k.sDb === "near" ? "Algo de empurre: deixa que a nota suba sen máis forza" : "Empurras no agudo: mesmo volume ca no centro";
+    const tR = k.sR === "ok" ? "Ben: o son gaña punta ao subir" : k.sR === "near" ? "Perde un pouco de anel: vogal diante, espazo arriba" : "O son vai cara atrás (entubado): vogal clara e diante";
+    return `<h3>Agudo fronte ao centro</h3><p class="sub">Modelo (Fischer-Dieskau): o agudo gaña anel sen gañar volume.</p>
+      <div class="tablewrap"><table class="rtable"><tr><th></th><th>Ti</th><th>Modelo</th><th></th></tr>
+      <tr><td>Volume</td><td style="white-space:nowrap"><span class="sdot" data-s="${k.sDb}"></span>${sg(k.dDb)} dB</td><td style="white-space:nowrap">≈ +2 dB</td><td>${tDb}</td></tr>
+      <tr><td>Anel</td><td style="white-space:nowrap"><span class="sdot" data-s="${k.sR}"></span>${sg(k.dR)} dB</td><td style="white-space:nowrap">≈ +5 dB</td><td>${tR}</td></tr></table></div>`;
+  }
+
   // ---------- análise dun bloque de audio ----------
   function analyse(now) {
     an.getFloatTimeDomainData(buf);
@@ -483,6 +513,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (hist.f0.length >= 3) { const m = med(hist.f0), r = f / m;
           if (r > 1.8 && r < 2.2) f /= 2; else if (r > 2.7 && r < 3.3) f /= 3; else if (r > 0.45 && r < 0.55) f *= 2; }
         push(hist.f0, f); fr.f0 = med(hist.f0); curF0 = fr.f0;
+        fr.ring = ringDb(sr);
         if (mode === "tubo" && tube.step === 1) { fr.v = true; return fr; }   // co tubo: só nota e intensidade
         const fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
         if (fm) {
@@ -544,6 +575,12 @@ if (typeof module !== 'undefined') module.exports = Core;
           if (ex > 5) { s = s === "ok" ? "near" : s; tip = "Empurras máis ca co tubo"; sub = "+" + Math.round(ex) + " dB: pensa a sensación do tubo"; } }
       }
       $("st2s").textContent = noteName(fr.f0) + " · F1 " + Math.round(fr.f1);
+    }
+    if (fr.f0 >= 150 && fr.f0 < PASS_HZ) { push(ctr.db, fr.db, 300); push(ctr.ring, fr.ring, 300); }
+    else if (fr.f0 >= PASS_HZ && ctr.db.length >= 30 && !(mode === "tubo" && tube.step === 2 && fr.ex > 5)) {
+      const up = fr.db - pct(ctr.db, .75), dr = fr.ring - med(ctr.ring);
+      if (up > 7) { if (s === "ok") s = "near"; tip = "Empurras no agudo"; sub = "+" + Math.round(up) + " dB sobre o centro: mesma forza, deixa subir a nota"; }
+      else if (dr < -6) { if (s === "ok") s = "near"; tip = "O son vai cara atrás"; sub = "Perde anel: vogal clara e diante, espazo arriba"; }
     }
     fr.vw = v;
     setLight(s, auto ? v : null); setHint(tip, auto ? "Parece [" + v + "] · " + sub : sub);
@@ -665,7 +702,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     R.innerHTML = `<h2>Resultado da pasaxe</h2>
       ${seq.length ? "" : '<p class="sub">Sen texto: vogais recoñecidas automaticamente. Unha [e] moi escura pode aparecer como [a].</p>'}
       <div class="seglist">${out.map(o => `<span class="chip" data-s="${o.st}" title="${o.tip}"><b>${o.v}</b><small>${noteName(o.f0)}</small><small>${Math.round(o.okp)} %</small></span>`).join("")}</div>
-      <div class="tablewrap"><table class="rtable"><tr><th>Vogal</th><th>No punto</th><th>F1 / F2</th><th>Onde falla</th></tr>${summary}</table></div>`;
+      <div class="tablewrap"><table class="rtable"><tr><th>Vogal</th><th>No punto</th><th>F1 / F2</th><th>Onde falla</th></tr>${summary}</table></div>${topHtml(frames)}`;
     trail = out.flatMap(o => o.fr.map((f, i) => ({ f1: f.f1, f2: f.f2, s: o.js[i].s }))).slice(-600); draw();
   }
 
@@ -703,6 +740,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       <div class="legend"><span style="--c:var(--ok)">ben ${cnt("ok")}</span><span style="--c:var(--near)">case ${cnt("near")}</span><span style="--c:var(--bad)">mal ${cnt("bad")}</span><span style="--c:var(--accent)">xiro ${cnt("xiro")}</span></div>
       <div class="lyrics">${html}</div>
       ${probs ? `<div class="tablewrap"><table class="rtable"><tr><th>Palabra</th><th>Vogal · nota</th><th>Que pasa</th></tr>${probs}</table></div>` : '<p class="verdict">Todas as vogais medidas saíron ben.</p>'}
+      ${topHtml(frames)}
       <p class="sub">Cada vogal asígnase automaticamente seguindo a letra. Se cantaches algo distinto do texto escrito, esa parte non será fiable.</p>`;
     trail = vf.map(f => ({ f1: f.f1, f2: f.f2, s: "ok" })).slice(-400); draw();
   }
@@ -754,7 +792,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     const d = rec.date, pad = x => String(x).padStart(2, "0");
 
     const used = [...new Set(rec.log.map(f => f.vw).filter(Boolean))];
-    const lines = ["t_s,db,f0_hz,nota,f1_hz,f2_hz,vogal,cor"].concat(rec.log.map(f => [(f.t / 1000).toFixed(2), f.db.toFixed(1), f.f0 ? f.f0.toFixed(1) : "", f.f0 ? noteName(f.f0) : "", f.f1 ? Math.round(f.f1) : "", f.f2 ? Math.round(f.f2) : "", f.vw || "", f.s || (f.v ? "tubo" : "silencio")].join(",")));
+    const lines = ["t_s,db,f0_hz,nota,f1_hz,f2_hz,vogal,cor,anel_db"].concat(rec.log.map(f => [(f.t / 1000).toFixed(2), f.db.toFixed(1), f.f0 ? f.f0.toFixed(1) : "", f.f0 ? noteName(f.f0) : "", f.f1 ? Math.round(f.f1) : "", f.f2 ? Math.round(f.f2) : "", f.vw || "", f.s || (f.v ? "tubo" : "silencio"), f.ring != null ? f.ring.toFixed(1) : ""].join(",")));
 
     const vtag = rec.mode === "pasaxe" || rec.mode === "cancion" ? "" : "-" + (used.length > 1 ? used.join("") : (used[0] || rec.vowel));
     const base = `vogais-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${rec.mode}${vtag}`;
@@ -793,7 +831,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   async function start() {
     if (!(await openMic())) return;
-    running = true; frames = []; trail = []; hist.f0.length = hist.f1.length = hist.f2.length = hist.r1.length = hist.r2.length = 0;
+    running = true; frames = []; trail = []; ctr = { db: [], ring: [] }; hist.f0.length = hist.f1.length = hist.f2.length = hist.r1.length = hist.r2.length = 0;
     att = { voiced: 0, ok: 0, silentMs: 0 }; t0 = last = performance.now();
     $("results").hidden = true; $("go").textContent = "Parar"; recStart();
     if (mode === "vogal") setHint("Canta a vogal", V[vowel].ex);
