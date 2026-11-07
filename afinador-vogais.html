@@ -95,6 +95,14 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
 .rtable td:last-child{color:var(--muted)}
 .verdict{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .verdict p{margin:4px 0}
+.rec{display:flex;align-items:center;gap:10px;font-size:.92rem;cursor:pointer}
+.rec input{width:20px;height:20px;accent-color:var(--bad)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--bad);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+.sharebox{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel);border:1.5px solid var(--accent);border-radius:12px;padding:10px 12px}
+.sharebox div{display:flex;flex-direction:column;min-width:0}.sharebox small{color:var(--muted)}
+.sharebox .btn{flex:0 0 auto}
+#shalt a{color:var(--accent);font-weight:600;margin-right:12px}
 @media (prefers-reduced-motion:reduce){.light,.bar>div{transition:none}}
 </style>
 </head>
@@ -142,6 +150,12 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <button class="btn" id="go">Comezar</button>
     <button class="btn ghost" id="reset" hidden>Repetir</button>
   </div>
+  <label class="rec" for="recon"><input type="checkbox" id="recon"> <span>Gravar o son para envialo a Claude</span><span class="dot" id="recdot" hidden></span></label>
+  <div class="sharebox" id="sharebox" hidden>
+    <div><b id="shname">Gravación</b><small id="shinfo"></small></div>
+    <button class="btn" id="share">Compartir</button>
+  </div>
+  <p class="sub" id="shalt" hidden></p>
 
   <section class="results" id="results" hidden aria-live="polite"></section>
   <label class="gate" for="gate">Sensibilidade <input id="gate" type="range" min="-70" max="-25" step="1" value="-50"><span id="gatev">−50 dB</span></label>
@@ -157,6 +171,7 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
       <li>Pon o móbil a 30–60 cm, nunha sala tranquila. Mellor notas tidas ou sirenas lentas ca con texto.</li>
       <li>No agudo admítese que o F1 suba co xiro da voz; na [o] e na [u] avisa se se abren de máis.</li>
       <li>Co tubo na boca non se poden medir as vogais nin a abertura; por iso a comparación usa a intensidade, a afinación e as quebras, e a abertura (F1) mídese despois, na vogal.</li>
+      <li>Se marcas «Gravar o son», ao parar podes compartir un WAV coa túa voz e un CSV co que mediu a app (nota, F1, F2 e cor) para mandalos a Claude.</li>
       <li>Na pasaxe, sen texto, unha [e] moi escura pode confundirse cunha [a]. Co texto escrito non pasa.</li>
     </ul>
   </details>
@@ -287,6 +302,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   let att = { voiced: 0, ok: 0, silentMs: 0 }, last = 0, curF0 = 0, t0 = 0;
   let frames = [];                 // gravación actual: {t, db, f0, f1, f2, v}
   let tube = { step: 0, a: null, b: null, offset: null, offs: [] };
+  let rec = { on: store.get("gravar", "0") === "1", chunks: [], n: 0, node: null, sink: null, files: null, log: [] };
+  const REC_MAX_S = 300;
 
   const noteName = f => { const m = Math.round(69 + 12 * Math.log2(f / 440)); return NOTES[(m % 12 + 12) % 12] + (Math.floor(m / 12) - 1); };
   const semi = f => 69 + 12 * Math.log2(f / 440);
@@ -428,6 +445,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (now - last < 50) return; const dt = now - last; last = now;
     const fr = analyse(now);
     if (mode === "pasaxe" || mode === "tubo") frames.push(fr);
+    if (rec.on) rec.log.push(fr);
     if (!fr.v) {
       att.silentMs += dt; setLight("idle");
       if (att.silentMs > 400) hist.f0.length = hist.f1.length = hist.f2.length = 0;
@@ -578,16 +596,59 @@ if (typeof module !== 'undefined') module.exports = Core;
     catch (e) { setHint('<span class="err">Non se puido abrir o micrófono</span>', "Permite o acceso ao micro no navegador. A páxina ten que abrirse desde https ou localhost."); return false; }
     ctx = new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume();
     an = ctx.createAnalyser(); an.fftSize = 4096; buf = new Float32Array(an.fftSize);
-    ctx.createMediaStreamSource(stream).connect(an);
+    const src = ctx.createMediaStreamSource(stream); src.connect(an); rec.src = src;
     try { wake = await navigator.wakeLock?.request("screen"); } catch {}
     $("state").textContent = "Escoitando · " + Math.round(ctx.sampleRate / 100) / 10 + " kHz";
     return true;
   }
+  function recStart() {
+    rec.chunks = []; rec.n = 0; rec.log = []; rec.files = null; $("sharebox").hidden = true; $("shalt").hidden = true;
+    if (!rec.on || !ctx || !rec.src) return;
+    rec.node = ctx.createScriptProcessor(4096, 1, 1); rec.sink = ctx.createGain(); rec.sink.gain.value = 0;
+    rec.node.onaudioprocess = e => {
+      if (!running || rec.n > REC_MAX_S * ctx.sampleRate) return;
+      const x = e.inputBuffer.getChannelData(0), q = new Int16Array(x.length);
+      for (let i = 0; i < x.length; i++) { const v = Math.max(-1, Math.min(1, x[i])); q[i] = v < 0 ? v * 32768 : v * 32767; }
+      rec.chunks.push(q); rec.n += q.length;
+    };
+    rec.src.connect(rec.node); rec.node.connect(rec.sink); rec.sink.connect(ctx.destination);
+    rec.t0 = t0; rec.mode = mode; rec.vowel = vowel; rec.date = new Date(); $("recdot").hidden = false;
+  }
+  function recStop() {
+    $("recdot").hidden = true;
+    if (!rec.node) return;
+    try { rec.src.disconnect(rec.node); rec.node.disconnect(); rec.sink.disconnect(); } catch {}
+    rec.node = null;
+    const sr = ctx ? ctx.sampleRate : 48000;
+    if (rec.n < sr * 0.5) return;
+    const data = new Int16Array(rec.n); let o = 0; for (const c of rec.chunks) { data.set(c, o); o += c.length; }
+    const hdr = new DataView(new ArrayBuffer(44)), w = (p, str) => [...str].forEach((ch, i) => hdr.setUint8(p + i, ch.charCodeAt(0)));
+    w(0, "RIFF"); hdr.setUint32(4, 36 + data.byteLength, true); w(8, "WAVE"); w(12, "fmt "); hdr.setUint32(16, 16, true);
+    hdr.setUint16(20, 1, true); hdr.setUint16(22, 1, true); hdr.setUint32(24, sr, true); hdr.setUint32(28, sr * 2, true);
+    hdr.setUint16(32, 2, true); hdr.setUint16(34, 16, true); w(36, "data"); hdr.setUint32(40, data.byteLength, true);
+    const d = rec.date, pad = x => String(x).padStart(2, "0");
+    const base = `vogais-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${rec.mode}${rec.mode === "pasaxe" ? "" : "-" + rec.vowel}`;
+    const lines = ["t_s,db,f0_hz,nota,f1_hz,f2_hz,cor"].concat(rec.log.map(f => [(f.t / 1000).toFixed(2), f.db.toFixed(1), f.f0 ? f.f0.toFixed(1) : "", f.f0 ? noteName(f.f0) : "", f.f1 ? Math.round(f.f1) : "", f.f2 ? Math.round(f.f2) : "", f.s || (f.v ? "tubo" : "silencio")].join(",")));
+    const meta = `# modo=${rec.mode}; vogal=${rec.vowel}; texto=${(rec.mode === "pasaxe" ? $("ptext").value : "").replace(/[,\n]/g, " ")}; frecuencia=${sr}`;
+    rec.files = [new File([hdr.buffer, data.buffer], base + ".wav", { type: "audio/wav" }), new File([meta + "\n" + lines.join("\n")], base + ".csv", { type: "text/csv" })];
+    $("shname").textContent = base + ".wav"; $("shinfo").textContent = (rec.n / sr).toFixed(1) + " s · " + (data.byteLength / 1048576).toFixed(1) + " MB + datos";
+    $("sharebox").hidden = false;
+  }
+  async function shareRec() {
+    if (!rec.files) return;
+    try {
+      if (navigator.canShare && navigator.canShare({ files: rec.files })) { await navigator.share({ files: rec.files, title: "Gravación do afinador" }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    const alt = $("shalt"); alt.innerHTML = "Descarga os dous ficheiros e despois envíaos: ";
+    rec.files.forEach(f => { const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.textContent = f.name.endsWith(".wav") ? "Son (WAV)" : "Datos (CSV)"; alt.appendChild(a); });
+    alt.hidden = false;
+  }
+
   async function start() {
     if (!(await openMic())) return;
     running = true; frames = []; trail = []; hist.f0.length = hist.f1.length = hist.f2.length = 0;
     att = { voiced: 0, ok: 0, silentMs: 0 }; t0 = last = performance.now();
-    $("results").hidden = true; $("go").textContent = "Parar";
+    $("results").hidden = true; $("go").textContent = "Parar"; recStart();
     if (mode === "vogal") setHint("Canta a vogal", V[vowel].ex);
     if (mode === "pasaxe") { setHint("Gravando a pasaxe", "Canta só con vogais. Preme Parar ao rematar"); showScore(null); }
     if (mode === "tubo") { if (tube.step === 0) tube.step = 1; renderTubeSteps();
@@ -596,7 +657,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function closeMic() { stream?.getTracks().forEach(t => t.stop()); stream = null; ctx?.close(); ctx = null; try { wake?.release(); } catch {} $("state").textContent = "Micro apagado"; }
   function stop(silent) {
-    running = false; setLight("idle");
+    running = false; setLight("idle"); recStop();
     const keep = !silent && mode === "tubo" && tube.step === 1;   // entre paso 1 e 2 o micro segue aberto
     if (!keep) closeMic(); else $("state").textContent = "Micro listo para o paso 2";
     if (silent) return;
@@ -624,6 +685,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     start();
   });
   $("reset").addEventListener("click", () => { if (running) stop(true); else closeMic(); resetTube(); });
+  $("recon").checked = rec.on; $("recon").addEventListener("change", e => { rec.on = e.target.checked; store.set("gravar", rec.on ? "1" : "0"); });
+  $("share").addEventListener("click", shareRec);
   $("ptext").value = store.get("ptexto", ""); $("ptext").addEventListener("input", updateSeq);
   const gi = $("gate"); gi.value = gateDb; $("gatev").textContent = "−" + Math.abs(gateDb) + " dB";
   gi.addEventListener("input", () => { gateDb = +gi.value; store.set("gate", gi.value); $("gatev").textContent = "−" + Math.abs(gateDb) + " dB"; });
