@@ -206,8 +206,8 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <ul>
       <li>Zonas calibradas para a túa voz de barítono, a partir das túas gravacións de novembro de 2026.</li>
       <li><b>Estilo:</b> escolle un cantante modelo. A luz e os avisos usan as súas vogais, o seu volume e o seu anel. Ao parar ves en que te pareces e en que non.</li>
-      <li><b>Agudo fronte ao centro</b> (Pasaxe e Canción): compara o volume e o <b>anel</b> (enerxía arredor de 3 kHz) desde re4 co teu centro. O modelo é Fischer-Dieskau: ao subir gaña anel (+5 dB) sen gañar volume. En directo avisa se empurras (+7 dB) ou se o son vai cara atrás.</li>
-      <li>A [a] está calibrada máis clara (F2 desde 1050), coma a [a] de Fischer-Dieskau (≈ 1230).</li>
+      <li><b>Agudo fronte ao centro</b> (Pasaxe e Canción): compara o volume e o <b>anel</b> (enerxía arredor de 3 kHz) desde re4 co teu centro. A meta é un bo son: que o anel se manteña ou medre (desde −3 dB) e que o volume non suba máis de 5 dB. En directo avisa se empurras (+8 dB) ou se o son perde moito anel (−9 dB).</li>
+      <li>As zonas buscan un son ben feito, non o estilo dun cantante: [a] con F2 desde 1000, [e] desde 1620 e [i] desde 1850, para que entren tamén as vogais redondas de cantantes como Fischer-Dieskau ou Cappuccilli. Para imitar un estilo concreto usa o apartado Estilo.</li>
       <li>Funciona mellor ata sol4; por riba, a medida é menos fiable.</li>
       <li>Pon o móbil a 30–60 cm, nunha sala tranquila. Mellor notas tidas ou sirenas lentas ca con texto.</li>
       <li>No agudo admítese que o F1 suba co xiro da voz; na [o] e na [u] avisa se se abren de máis.</li>
@@ -335,9 +335,9 @@ if (typeof module !== 'undefined') module.exports = Core;
 <script>
 (() => {
   const VG = {
-    a: { f1: [600, 900], f2: [1050, 1400], k: 2.4, ex: "Canta [a] falada, clara e diante" },
-    e: { f1: [380, 650], f2: [1700, 2150], k: 2.4, ex: "Desde a [i]: bordos da lingua nos molares" },
-    i: { f1: [230, 520], f2: [1950, 2600], k: 2.4, ex: "Lingua alta e adiante, labios soltos" },
+    a: { f1: [600, 900], f2: [1000, 1400], k: 2.4, ex: "Canta [a] falada, clara e diante" },
+    e: { f1: [380, 650], f2: [1620, 2150], k: 2.4, ex: "Desde a [i]: bordos da lingua nos molares" },
+    i: { f1: [230, 520], f2: [1850, 2600], k: 2.4, ex: "Lingua alta e adiante, labios soltos" },
     o: { f1: [380, 650], f2: [700, 1100], k: 1.6, ex: "Labios redondos, pouca apertura" },
     u: { f1: [260, 480], f2: [550, 950], k: 1.6, ex: "Coma unha [i] cos labios en redondo" }
   };
@@ -558,17 +558,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     const c = fs.filter(f => f.v && f.f0 >= 150 && f.f0 < PASS_HZ && f.ring != null), h = fs.filter(f => f.v && f.f0 >= PASS_HZ && f.ring != null);
     if (c.length < 15 || h.length < 10) return null;
     const dDb = pct(h.map(f => f.db), .75) - pct(c.map(f => f.db), .75), dR = med(h.map(f => f.ring)) - med(c.map(f => f.ring));
-    return { dDb, dR, sDb: dDb <= 4 ? "ok" : dDb <= 7 ? "near" : "bad", sR: dR >= 0 ? "ok" : dR >= -6 ? "near" : "bad" };
+    return { dDb, dR, sDb: dDb <= 5 ? "ok" : dDb <= 8 ? "near" : "bad", sR: dR >= -3 ? "ok" : dR >= -8 ? "near" : "bad" };
   }
   function topHtml(fs) {
     const k = topCheck(fs); if (!k) return "";
     const sg = x => (x >= 0 ? "+" : "−") + Math.abs(Math.round(x));
     const tDb = k.sDb === "ok" ? "Ben: o agudo non empurra" : k.sDb === "near" ? "Algo de empurre: deixa que a nota suba sen máis forza" : "Empurras no agudo: mesmo volume ca no centro";
-    const tR = k.sR === "ok" ? "Ben: o son gaña punta ao subir" : k.sR === "near" ? "Perde un pouco de anel: vogal diante, espazo arriba" : "O son vai cara atrás (entubado): vogal clara e diante";
-    return `<h3>Agudo fronte ao centro</h3><p class="sub">Modelo (Fischer-Dieskau): o agudo gaña anel sen gañar volume.</p>
-      <div class="tablewrap"><table class="rtable"><tr><th></th><th>Ti</th><th>Modelo</th><th></th></tr>
-      <tr><td>Volume</td><td style="white-space:nowrap"><span class="sdot" data-s="${k.sDb}"></span>${sg(k.dDb)} dB</td><td style="white-space:nowrap">≈ +2 dB</td><td>${tDb}</td></tr>
-      <tr><td>Anel</td><td style="white-space:nowrap"><span class="sdot" data-s="${k.sR}"></span>${sg(k.dR)} dB</td><td style="white-space:nowrap">≈ +5 dB</td><td>${tR}</td></tr></table></div>`;
+    const tR = k.sR === "ok" ? (k.dR >= 2 ? "Moi ben: o son gaña punta ao subir" : "Ben: mantés o anel ao subir") : k.sR === "near" ? "Perde un pouco de anel: vogal diante, espazo arriba" : "O son vai cara atrás (entubado): vogal clara e diante";
+    return `<h3>Agudo fronte ao centro</h3><p class="sub">Bo son: o agudo mantén ou gaña anel sen subir moito o volume.</p>
+      <div class="tablewrap"><table class="rtable"><tr><th></th><th>Ti</th><th>Meta</th><th></th></tr>
+      <tr><td>Volume</td><td style="white-space:nowrap"><span class="sdot" data-s="${k.sDb}"></span>${sg(k.dDb)} dB</td><td style="white-space:nowrap">0 a +5 dB</td><td>${tDb}</td></tr>
+      <tr><td>Anel</td><td style="white-space:nowrap"><span class="sdot" data-s="${k.sR}"></span>${sg(k.dR)} dB</td><td style="white-space:nowrap">≥ −3 dB</td><td>${tR}</td></tr></table></div>`;
   }
 
   // ---------- análise dun bloque de audio ----------
@@ -649,7 +649,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     if (fr.f0 >= 150 && fr.f0 < PASS_HZ) { push(ctr.db, fr.db, 300); push(ctr.ring, fr.ring, 300); }
     else if (fr.f0 >= PASS_HZ && ctr.db.length >= 30 && !(mode === "tubo" && tube.step === 2 && fr.ex > 5)) {
-      const up = fr.db - pct(ctr.db, .75), dr = fr.ring - med(ctr.ring), lim = mode === "estilo" ? STYLES[style].live : { push: 7, drop: -6 };
+      const up = fr.db - pct(ctr.db, .75), dr = fr.ring - med(ctr.ring), lim = mode === "estilo" ? STYLES[style].live : { push: 8, drop: -9 };
       if (up > lim.push) { if (s === "ok") s = "near"; tip = "Empurras no agudo"; sub = "+" + Math.round(up) + " dB sobre o centro: mesma forza, deixa subir a nota"; }
       else if (dr < lim.drop) { if (s === "ok") s = "near"; tip = "O son vai cara atrás"; sub = "Perde anel: vogal clara e diante, espazo arriba"; }
     }
