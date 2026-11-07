@@ -70,13 +70,22 @@ table{border-collapse:collapse;width:100%;font-size:.85rem}
 th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 .tablewrap{overflow-x:auto}
 .err{color:var(--bad);font-weight:600}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
 .tabs button{appearance:none;border:0;background:transparent;color:var(--muted);font:600 .95rem var(--font-ui);padding:10px 0;border-radius:9px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
 .tabs button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .modehelp{margin:-6px 0 0;color:var(--muted);font-size:.88rem;max-width:60ch}
 .passage{display:flex;flex-direction:column;gap:6px}
 .passage label{font-weight:600}.opt{font-weight:400;color:var(--muted)}
+.passage textarea{font:1rem/1.5 var(--font-ui);padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);width:100%;resize:vertical}
+.lyrics{font:1.15rem/2.2 var(--font-ui);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.lyrics .v{position:relative;font-weight:700;padding:0 1px;border-radius:4px;border-bottom:3px solid var(--idle)}
+.lyrics .v[data-s="ok"]{border-color:var(--ok);color:var(--ok)}.lyrics .v[data-s="near"]{border-color:var(--near);color:var(--near)}
+.lyrics .v[data-s="bad"]{border-color:var(--bad);color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.lyrics .v[data-s="xiro"]{border-color:var(--accent);color:var(--accent)}
+.lyrics .v small{position:absolute;left:50%;top:-1.2em;transform:translateX(-50%);font:600 .6rem var(--font-num);color:var(--muted);white-space:nowrap}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--c)}
 .passage input{font:1rem var(--font-ui);padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);width:100%}
 .seq{font:.9rem var(--font-num);color:var(--muted);overflow-wrap:anywhere}
 .tubesteps{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -113,7 +122,7 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
   <header><h1>Afinador de vogais</h1><span class="sub" id="state">Micro apagado</span></header>
 
   <div class="tabs" role="tablist" aria-label="Modo">
-    <button id="m-vogal" data-m="vogal" role="tab">Vogal</button><button id="m-pasaxe" data-m="pasaxe" role="tab">Pasaxe</button><button id="m-tubo" data-m="tubo" role="tab">Tubo</button>
+    <button id="m-vogal" data-m="vogal" role="tab">Vogal</button><button id="m-pasaxe" data-m="pasaxe" role="tab">Pasaxe</button><button id="m-tubo" data-m="tubo" role="tab">Tubo</button><button id="m-cancion" data-m="cancion" role="tab">Canción</button>
   </div>
   <p class="modehelp" id="modehelp"></p>
 
@@ -121,6 +130,12 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <label for="ptext">Texto ou vogais da pasaxe <span class="opt">(opcional)</span></label>
     <input id="ptext" type="text" autocomplete="off" placeholder="p. ex. polas dez imos calar">
     <div class="seq" id="pseq">Sen texto: a app recoñece cada vogal soa.</div>
+  </div>
+
+  <div class="passage" id="songbox" hidden>
+    <label for="stext">Letra da canción</label>
+    <textarea id="stext" rows="4" placeholder="polas unha media lúa, polas dúas quenta o sol…"></textarea>
+    <div class="seq" id="sseq">Escribe a letra para que a app saiba que vogal toca en cada sílaba.</div>
   </div>
 
   <div class="vowels" id="vowelbox" role="group" aria-label="Vogal">
@@ -165,6 +180,7 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
 
   <details>
     <summary>Como funciona e límites</summary>
+    <p><b>Canción:</b> escribe a letra e canta con texto. En directo a luz indica a vogal que soa; ao parar, cada vogal da letra aparece coloreada (verde ben, ámbar case, vermello mal, azul xiro) coa nota onde a cantaches.</p>
     <p><b>Vogal:</b> traballas unha vogal e a luz indica se está no punto. <b>Pasaxe:</b> cantas un fragmento só con vogais; se escribes o texto, a app sabe que vogal toca en cada momento e dálle nota a cada unha. <b>Tubo:</b> primeiro cantas polo tubo e despois sen el; compara canto empurras no agudo, a estabilidade da nota e a abertura da vogal.</p>
     <p>Mide os dous primeiros formantes da vogal. O <b>F2</b> indica canto de adiante está a lingua (o brillo da [e] e a [i]); o <b>F1</b>, canto de aberta está a boca. A luz pasa a verde cando os dous están na zona da vogal.</p>
     <div class="tablewrap"><table id="ttable"></table></div>
@@ -266,17 +282,29 @@ const Core = (() => {
       s[i] = pe * (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (N - 1)));
     }
     const p = Math.round(fs / 1000) + 2, a = lpc(s, p); if (!a) return null;
-    const { re, im } = roots(a), out = [];
+    const { re, im } = roots(a), out = [], wide = []; let merged = false;
     const minF = Math.max(150, f0 ? f0 * 0.85 : 150);
     for (let i = 0; i < re.length; i++) {
       if (im[i] <= 0) continue;
       const f = Math.atan2(im[i], re[i]) * fs / (2 * Math.PI);
       const bw = -Math.log(Math.hypot(re[i], im[i])) * fs / Math.PI;
+      if (f > minF && f < 1500 && bw < 2000) wide.push(f);
       if (f > minF && f < fs / 2 - 200 && bw < 500) out.push(f);
     }
     out.sort((u, v) => u - v);
+    // vogal posterior pechada ([u], [o]): tras un F1 baixo, o "seguinte formante" está moi arriba e moi débil;
+    // o F2 real é un polo ancho preto do F1 ou está fundido co F1
+    if (out.length >= 2 && out[0] < 900 && out[1] > 2000) {
+      const env = f => { const w = 2 * Math.PI * f / fs; let r = 0, q = 0; for (let k = 0; k < a.length; k++) { r += a[k] * Math.cos(w * k); q -= a[k] * Math.sin(w * k); } return -10 * Math.log10(r * r + q * q); };
+      const pk = env(out[0]);
+      if (pk - Math.max(env(1200), env(1500), env(1800)) > 22 && pk - env(out[1]) > -5) {   // val profundo entre 1200 e 1800 Hz: vogal posterior escura
+        const c = wide.filter(f => f > out[0] + 60).sort((u, v) => u - v);
+        if (c.length) out.splice(1, 0, c[0]);
+        else if (out[0] > 420) { const fc = out[0]; out.splice(0, 1, fc - 150, fc + 150); merged = true; }   // pico único de F1+F2 (non nunha [i], cuxo F1 é máis baixo)
+      }
+    }
     if (out.length < 2) return null;
-    return { f1: out[0], f2: out[1], f3: out[2] || 0 };
+    return { f1: out[0], f2: out[1], f3: out[2] || 0, merged };
   }
   return { yin, formants };
 })();
@@ -294,7 +322,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   const HELP = {
     vogal: "Escolle unha vogal e cántaa en notas tidas ou sirenas. Verde: no punto.",
     pasaxe: "Canta un fragmento só con vogais. Escribe o texto para que saiba que vogal toca en cada momento.",
-    tubo: "1: canta a sirena polo tubo. 2: quítao e repítea na vogal. Compara se empurras máis sen tubo e mide a abertura."
+    tubo: "1: canta a sirena polo tubo. 2: quítao e repítea na vogal. Compara se empurras máis sen tubo e mide a abertura.",
+    cancion: "Escribe a letra e canta con texto. Ao parar verás cada vogal da letra coloreada segundo saíu."
   };
   const NOTES = ["do","do♯","re","mi♭","mi","fa","fa♯","sol","lá♭","la","si♭","si"];
   const $ = id => document.getElementById(id);
@@ -357,6 +386,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     return [...s].filter(c => "aeiou".includes(c));
   }
 
+  function textVowelPos(s) {   // vogais da letra coa súa posición no texto orixinal
+    const out = [], chars = [...(s || "")];
+    const base = chars.map(c => c.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""));
+    for (let i = 0; i < chars.length; i++) {
+      const c = base[i]; if (!"aeiou".includes(c)) continue;
+      if (c === "u" && i > 0 && (base[i - 1] === "q" || base[i - 1] === "g") && "ei".includes(base[i + 1] || "")) continue;
+      out.push({ v: c, i });
+    }
+    return { chars, list: out };
+  }
+
   // ---------- interface común ----------
   function showScore(p) { $("pct").textContent = p == null ? "—" : Math.round(p) + " %"; $("bar").style.width = (p || 0) + "%"; }
   function setLight(s, letter) { $("light").dataset.s = s; if (letter) $("lv").textContent = letter; }
@@ -376,17 +416,22 @@ if (typeof module !== 'undefined') module.exports = Core;
     mode = m; store.set("modo", m);
     document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.m === m ? "true" : "false"));
     $("modehelp").textContent = HELP[m];
-    $("passagebox").hidden = m !== "pasaxe"; $("vowelbox").hidden = m === "pasaxe";
+    $("passagebox").hidden = m !== "pasaxe"; $("songbox").hidden = m !== "cancion"; $("vowelbox").hidden = m === "pasaxe" || m === "cancion";
     $("tubesteps").hidden = m !== "tubo"; $("scorebox").hidden = m === "tubo";
     $("results").hidden = true; $("results").innerHTML = ""; $("reset").hidden = true;
     tube = { step: 0, a: null, b: null, offset: null, offs: [] }; renderTubeSteps();
     trail = []; frames = [];
     if (m === "vogal") { $("go").textContent = "Comezar"; setLight("idle", vowel); setHint(V[vowel].ex, "Preme Comezar e permite o micrófono"); }
     if (m === "pasaxe") { $("go").textContent = "Gravar pasaxe"; setLight("idle", "·"); setHint("Canta a pasaxe en vogais", "Preme Gravar e, ao rematar, Parar"); updateSeq(); }
+    if (m === "cancion") { $("go").textContent = "Cantar a canción"; setLight("idle", "·"); setHint("Canta a canción con texto", "Preme o botón e, ao rematar, Parar"); updateSong(); }
     if (m === "tubo") { $("go").textContent = "1 · Gravar co tubo"; setLight("idle", vowel); setHint("Paso 1: canta a sirena polo tubo", "Despois repetirás sen tubo en [" + vowel + "]"); }
     showScore(null); draw();
   }
 
+  function updateSong() {
+    const t = $("stext").value; store.set("cletra", t); const n = textVowelPos(t).list.length;
+    $("sseq").textContent = n ? n + " vogais na letra" : "Escribe a letra para que a app saiba que vogal toca en cada sílaba.";
+  }
   function updateSeq() {
     const seq = textVowels($("ptext").value); store.set("ptexto", $("ptext").value);
     $("pseq").textContent = seq.length ? "Vogais: " + seq.join(" ") + "  (" + seq.length + ")" : "Sen texto: a app recoñece cada vogal soa.";
@@ -456,7 +501,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     requestAnimationFrame(tick);
     if (now - last < 50) return; const dt = now - last; last = now;
     const fr = analyse(now);
-    if (mode === "pasaxe" || mode === "tubo") frames.push(fr);
+    if (mode === "pasaxe" || mode === "tubo" || mode === "cancion") frames.push(fr);
     if (rec.on) rec.log.push(fr);
     if (!fr.v) {
       att.silentMs += dt; setLight("idle");
@@ -470,12 +515,15 @@ if (typeof module !== 'undefined') module.exports = Core;
       setHint("Gravando co tubo", "Sirena lenta, cómoda. Preme Parar ao rematar"); $("st1v").textContent = noteName(fr.f0) + " · " + Math.round(fr.db) + " dB";
       return;
     }
-    fr.vw = mode === "pasaxe" ? null : vowel;
+    const auto = mode === "pasaxe" || mode === "cancion";
+    fr.vw = auto ? null : vowel;
     if (fr.unst) {
       $("f1").textContent = "?"; $("f2").textContent = "?"; att.silentMs = 0;
       if (fr.f0 >= PASS_HZ) {
         fr.s = "xiro"; setLight("turn");
-        setHint("Xiro · zona de pasaxe", "A vogal péchase para xirar. Escoita que siga soando [" + (mode === "pasaxe" ? "vogal" : vowel) + "]");
+        setHint("Xiro · zona de pasaxe", "A vogal péchase para xirar. Escoita que siga soando " + (auto ? "a vogal" : "[" + vowel + "]"));
+      } else if (auto) {
+        fr.s = "transicion"; setLight("idle");
       } else {
         fr.s = "bad"; setLight("bad");
         setHint("Vogal pouco definida", "Aínda non é zona de pasaxe: fixa a lingua e os labios");
@@ -484,7 +532,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       return;
     }
     $("f1").textContent = Math.round(fr.f1); $("f2").textContent = Math.round(fr.f2);
-    let v = vowel; if (mode === "pasaxe") { v = nearest(fr.f0, fr.f1, fr.f2); $("tgt").textContent = V[v].f2[0] + "–" + V[v].f2[1]; }
+    let v = vowel; if (auto) { v = nearest(fr.f0, fr.f1, fr.f2); $("tgt").textContent = V[v].f2[0] + "–" + V[v].f2[1]; }
     const j = judge(v, fr.f0, fr.f1, fr.f2);
     let s = j.s, tip = j.tip, sub = j.sub;
     if (mode === "tubo" && tube.step === 2) {
@@ -498,7 +546,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       $("st2s").textContent = noteName(fr.f0) + " · F1 " + Math.round(fr.f1);
     }
     fr.vw = v;
-    setLight(s, mode === "pasaxe" ? v : null); setHint(tip, mode === "pasaxe" ? "Parece [" + v + "] · " + sub : sub);
+    setLight(s, auto ? v : null); setHint(tip, auto ? "Parece [" + v + "] · " + sub : sub);
     fr.s = s; trail.push({ f1: fr.f1, f2: fr.f2, s }); if (trail.length > 40) trail.shift();
     if (mode === "vogal") {
       if (att.silentMs > 900) att = { voiced: 0, ok: 0, silentMs: 0 };
@@ -569,15 +617,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   // ---------- modo pasaxe ----------
-  function passageReport() {
-    const vf = frames.filter(f => f.v && f.f1 && !f.unst);
-    const seq = textVowels($("ptext").value);
-    const R = $("results"); R.hidden = false;
-    if (vf.length < 6) { R.innerHTML = '<p class="err">Non se detectou canto suficiente. Achégate ao micro ou baixa a sensibilidade.</p>'; return; }
-    let segs = [];
-    if (seq.length) {
-      const T = vf.length, K = seq.length;
-      if (T < K) { R.innerHTML = '<p class="err">A gravación é máis curta ca a secuencia de vogais.</p>'; return; }
+  function align(vf, seq) {   // aliñamento forzado das tramas coa secuencia de vogais (programación dinámica)
+    const T = vf.length, K = seq.length, segs = [];
       const C = vf.map(f => seq.map(v => zdist(v, f.f0, f.f1, f.f2)));
       const D = Array.from({ length: T }, () => new Float64Array(K).fill(Infinity)), B = Array.from({ length: T }, () => new Int8Array(K));
       D[0][0] = C[0][0];
@@ -588,6 +629,19 @@ if (typeof module !== 'undefined') module.exports = Core;
       const lab = new Int32Array(T); let k = K - 1;
       for (let t = T - 1; t >= 0; t--) { lab[t] = k; if (t > 0 && B[t][k] === 1) k--; }
       for (let i = 0; i < K; i++) segs.push({ v: seq[i], fr: vf.filter((_, t) => lab[t] === i) });
+      return segs;
+  }
+
+  function passageReport() {
+    const vf = frames.filter(f => f.v && f.f1 && !f.unst);
+    const seq = textVowels($("ptext").value);
+    const R = $("results"); R.hidden = false;
+    if (vf.length < 6) { R.innerHTML = '<p class="err">Non se detectou canto suficiente. Achégate ao micro ou baixa a sensibilidade.</p>'; return; }
+    let segs = [];
+    if (seq.length) {
+      const T = vf.length, K = seq.length;
+      if (T < K) { R.innerHTML = '<p class="err">A gravación é máis curta ca a secuencia de vogais.</p>'; return; }
+      segs = align(vf, seq);
     } else {
       const lab = vf.map(f => nearest(f.f0, f.f1, f.f2));
       const sm = lab.map((_, i) => { const w = lab.slice(Math.max(0, i - 2), i + 3), c = {}; w.forEach(x => c[x] = (c[x] || 0) + 1); return Object.keys(c).sort((a, b) => c[b] - c[a])[0]; });
@@ -613,6 +667,44 @@ if (typeof module !== 'undefined') module.exports = Core;
       <div class="seglist">${out.map(o => `<span class="chip" data-s="${o.st}" title="${o.tip}"><b>${o.v}</b><small>${noteName(o.f0)}</small><small>${Math.round(o.okp)} %</small></span>`).join("")}</div>
       <div class="tablewrap"><table class="rtable"><tr><th>Vogal</th><th>No punto</th><th>F1 / F2</th><th>Onde falla</th></tr>${summary}</table></div>`;
     trail = out.flatMap(o => o.fr.map((f, i) => ({ f1: f.f1, f2: f.f2, s: o.js[i].s }))).slice(-600); draw();
+  }
+
+  // ---------- modo canción ----------
+  function songReport() {
+    const R = $("results"); R.hidden = false;
+    const { chars, list } = textVowelPos($("stext").value);
+    if (!list.length) { R.innerHTML = '<p class="err">Escribe a letra antes de cantar.</p>'; return; }
+    const all = frames.filter(f => f.v && f.f1), vf = [];
+    all.forEach((f, i) => { if (f.unst) return; const p = all[i - 1];
+      if (!p || p.unst || (Math.abs(f.f2 - p.f2) < 180 && Math.abs(f.f1 - p.f1) < 120)) vf.push(f); });
+    if (vf.length < list.length) { R.innerHTML = '<p class="err">Gravouse pouco canto para esta letra. Achégate ao micro ou canta máis seguido.</p>'; return; }
+    const segs = align(vf, list.map(x => x.v));
+    const res = segs.map(sg => {
+      if (!sg.fr.length) return { s: "", note: "", tip: "sen medida" };
+      const t1 = sg.fr[0].t, t2 = sg.fr[sg.fr.length - 1].t, f0 = med(sg.fr.map(f => f.f0));
+      const span = all.filter(f => f.t >= t1 && f.t <= t2), un = span.filter(f => f.unst).length;
+      if (f0 >= PASS_HZ && un > sg.fr.length) return { s: "xiro", note: noteName(f0), tip: "xiro (zona de pasaxe)" };
+      const js = sg.fr.map(f => judge(sg.v, f.f0, f.f1, f.f2)), okp = js.filter(x => x.s === "ok").length / js.length;
+      const jm = judge(sg.v, f0, med(sg.fr.map(f => f.f1)), med(sg.fr.map(f => f.f2)));
+      const st = okp >= .5 ? "ok" : okp >= .25 || jm.s !== "bad" ? "near" : "bad";
+      return { s: st, note: noteName(f0), tip: st === "ok" ? "ben" : jm.s === "ok" ? "inestable: só en parte no punto" : jm.tip.toLowerCase() };
+    });
+    const pos = new Map(list.map((x, k) => [x.i, k])), esc = c => c.replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+    const html = chars.map((c, i) => { if (!pos.has(i)) return esc(c);
+      const r = res[pos.get(i)]; return `<span class="v" data-s="${r.s}" title="${r.note} · ${r.tip}">${esc(c)}${r.note ? `<small>${r.note}</small>` : ""}</span>`; }).join("");
+    const words = []; let w = { txt: "", ks: [] };
+    chars.forEach((c, i) => { if (/[\s,.;:!?¡¿—-]/.test(c)) { if (w.txt) words.push(w); w = { txt: "", ks: [] }; } else { w.txt += c; if (pos.has(i)) w.ks.push(pos.get(i)); } });
+    if (w.txt) words.push(w);
+    const probs = words.map(wd => ({ wd, bad: wd.ks.filter(k => res[k].s === "bad" || res[k].s === "near") })).filter(x => x.bad.length)
+      .map(x => `<tr><td>${esc(x.wd.txt)}</td><td>${x.bad.map(k => "[" + list[k].v + "] " + res[k].note).join(", ")}</td><td>${x.bad.map(k => res[k].tip).join("; ")}</td></tr>`).join("");
+    const cnt = k => res.filter(r => r.s === k).length;
+    showScore(100 * cnt("ok") / res.length);
+    R.innerHTML = `<h2>Como saíu a canción</h2>
+      <div class="legend"><span style="--c:var(--ok)">ben ${cnt("ok")}</span><span style="--c:var(--near)">case ${cnt("near")}</span><span style="--c:var(--bad)">mal ${cnt("bad")}</span><span style="--c:var(--accent)">xiro ${cnt("xiro")}</span></div>
+      <div class="lyrics">${html}</div>
+      ${probs ? `<div class="tablewrap"><table class="rtable"><tr><th>Palabra</th><th>Vogal · nota</th><th>Que pasa</th></tr>${probs}</table></div>` : '<p class="verdict">Todas as vogais medidas saíron ben.</p>'}
+      <p class="sub">Cada vogal asígnase automaticamente seguindo a letra. Se cantaches algo distinto do texto escrito, esa parte non será fiable.</p>`;
+    trail = vf.map(f => ({ f1: f.f1, f2: f.f2, s: "ok" })).slice(-400); draw();
   }
 
   // ---------- micro ----------
@@ -664,9 +756,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     const used = [...new Set(rec.log.map(f => f.vw).filter(Boolean))];
     const lines = ["t_s,db,f0_hz,nota,f1_hz,f2_hz,vogal,cor"].concat(rec.log.map(f => [(f.t / 1000).toFixed(2), f.db.toFixed(1), f.f0 ? f.f0.toFixed(1) : "", f.f0 ? noteName(f.f0) : "", f.f1 ? Math.round(f.f1) : "", f.f2 ? Math.round(f.f2) : "", f.vw || "", f.s || (f.v ? "tubo" : "silencio")].join(",")));
 
-    const vtag = rec.mode === "pasaxe" ? "" : "-" + (used.length > 1 ? used.join("") : (used[0] || rec.vowel));
+    const vtag = rec.mode === "pasaxe" || rec.mode === "cancion" ? "" : "-" + (used.length > 1 ? used.join("") : (used[0] || rec.vowel));
     const base = `vogais-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${rec.mode}${vtag}`;
-    const meta = `# modo=${rec.mode}; vogais=${used.join(" ") || rec.vowel}; texto=${(rec.mode === "pasaxe" ? $("ptext").value : "").replace(/[,\n]/g, " ")}; frecuencia=${sr}`;
+    const meta = `# modo=${rec.mode}; vogais=${used.join(" ") || rec.vowel}; texto=${(rec.mode === "pasaxe" ? $("ptext").value : rec.mode === "cancion" ? $("stext").value : "").replace(/[,\n]/g, " ")}; frecuencia=${sr}`;
     rec.files = [new File([hdr.buffer, data.buffer], base + ".wav", { type: "audio/wav" }), new File([meta + "\n" + lines.join("\n")], base + ".csv", { type: "text/csv" })];
     $("shname").textContent = base + ".wav"; $("shinfo").textContent = (rec.n / sr).toFixed(1) + " s · " + (data.byteLength / 1048576).toFixed(1) + " MB + datos";
     $("sharebox").hidden = false;
@@ -706,6 +798,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     $("results").hidden = true; $("go").textContent = "Parar"; recStart();
     if (mode === "vogal") setHint("Canta a vogal", V[vowel].ex);
     if (mode === "pasaxe") { setHint("Gravando a pasaxe", "Canta só con vogais. Preme Parar ao rematar"); showScore(null); }
+    if (mode === "cancion") { setHint("Gravando a canción", "Canta con texto. Preme Parar ao rematar"); showScore(null); }
     if (mode === "tubo") { if (tube.step === 0) tube.step = 1; renderTubeSteps();
       if (tube.step === 2) { tube.offs = []; tube.offset = null; setHint("Agora sen tubo, en [" + vowel + "]", "A mesma sirena, coa sensación do tubo"); } }
     requestAnimationFrame(tick);
@@ -718,6 +811,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (silent) return;
     if (mode === "vogal") $("go").textContent = "Comezar";
     if (mode === "pasaxe") { $("go").textContent = "Gravar outra vez"; setHint("Pasaxe analizada", "Revisa as vogais en ámbar ou vermello"); passageReport(); }
+    if (mode === "cancion") { $("go").textContent = "Cantar outra vez"; setHint("Canción analizada", "Mira as vogais coloreadas na letra"); songReport(); }
     if (mode === "tubo") {
       if (tube.step === 1) { tube.a = frames.slice(); tube.map = levelMap(tube.a); tube.step = 2; renderTubeSteps();
         const A = stats(tube.a); $("st1v").textContent = A ? noteName(A.lo) + "–" + noteName(A.hi) : "curta";
@@ -743,6 +837,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   $("recon").checked = rec.on; $("recon").addEventListener("change", e => { rec.on = e.target.checked; store.set("gravar", rec.on ? "1" : "0"); });
   $("share").addEventListener("click", shareRec);
   $("ptext").value = store.get("ptexto", ""); $("ptext").addEventListener("input", updateSeq);
+  $("stext").value = store.get("cletra", ""); $("stext").addEventListener("input", updateSong);
   const gi = $("gate"); gi.value = gateDb; $("gatev").textContent = "−" + Math.abs(gateDb) + " dB";
   gi.addEventListener("input", () => { gateDb = +gi.value; store.set("gate", gi.value); $("gatev").textContent = "−" + Math.abs(gateDb) + " dB"; });
   document.addEventListener("visibilitychange", async () => {
