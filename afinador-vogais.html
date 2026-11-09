@@ -320,7 +320,7 @@ const Core = (() => {
       const env = f => { const w = 2 * Math.PI * f / fs; let r = 0, q = 0; for (let k = 0; k < a.length; k++) { r += a[k] * Math.cos(w * k); q -= a[k] * Math.sin(w * k); } return -10 * Math.log10(r * r + q * q); };
       const pk = env(out[0]);
       if (pk - Math.max(env(1200), env(1500), env(1800)) > 22 && pk - env(out[1]) > -5) {   // val profundo entre 1200 e 1800 Hz: vogal posterior escura
-        const c = wide.filter(f => f > out[0] + 60).sort((u, v) => u - v);
+        const c = wide.filter(f => f > out[0] + 60 && env(f) > pk - 24).sort((u, v) => u - v);   // o F2 dunha [u]/[o] ten enerxía; nunha [i] ese polo cae no val
         if (c.length) out.splice(1, 0, c[0]);
         else if (out[0] > 420) { const fc = out[0]; out.splice(0, 1, fc - 150, fc + 150); merged = true; }   // pico único de F1+F2 (non nunha [i], cuxo F1 é máis baixo)
       }
@@ -347,18 +347,18 @@ if (typeof module !== 'undefined') module.exports = Core;
     fd: {
       name: "Fischer-Dieskau",
       v: { a: { f1: [570, 730], f2: [1120, 1360], k: 2.2 }, e: { f1: [380, 540], f2: [1580, 2000] },
-           i: { f1: [260, 400], f2: [1720, 2300] }, o: { f1: [430, 580], f2: [900, 1130] } },
-      ref: { a: [650, 1230], e: [450, 1690], i: [320, 1850], o: [505, 1020] },
+           i: { f1: [260, 400], f2: [1720, 2300] }, o: { f1: [380, 580], f2: [900, 1140] } },
+      ref: { a: [650, 1230], e: [450, 1690], i: [320, 1850], o: [480, 1030] },
       dDb: { model: "≈ +2 a +5 dB", ok: 5, near: 8 }, dR: { model: "≈ +5 dB", ok: 2, near: -3 },
-      vib: { model: "≈ 5,8 Hz", ok: [5.2, 6.4], near: [4.6, 7.0] },
+      vib: { model: "≈ 5,5–5,8 Hz", ok: [5.0, 6.4], near: [4.5, 7.0] },
       live: { push: 6, drop: -3 },
       traits: [
         "<b>Agudo con punta, sen forza:</b> ao subir, o anel medra ≈ +5 dB e o volume só ≈ +2–5 dB.",
         "<b>[a] pouco aberta e clara:</b> F1 ≈ 650 (menos mandíbula) e F2 ≈ 1230.",
         "<b>[e] e [i] redondeadas, non estiradas:</b> F2 ≈ 1690 e ≈ 1850. O brillo vén do anel, non de adiantar máis a lingua.",
-        "<b>[o] redonda e cuberta:</b> F1 ≈ 500, F2 ≈ 1020; no agudo non se abre.",
+        "<b>[o] redonda e cuberta:</b> F1 ≈ 480, F2 ≈ 1030; no agudo non se abre.",
         "<b>Anel progresivo:</b> medra nota a nota do grave ao agudo, sen saltos.",
-        "<b>Vibrato regular</b>, ≈ 5,8 Hz."
+        "<b>Vibrato regular</b>, ≈ 5,5–5,8 Hz."
       ],
       src: "Medido en «Ich grolle nicht» (Schumann, con piano) e nun fragmento con orquestra."
     },
@@ -422,7 +422,8 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   // ---------- xuízo dunha vogal ----------
   function judge(v, f0, f1, f2) {
-    const t = V[v], f1max = Math.max(t.f1[1], f0 * t.k), f1min = t.f1[0];
+    // nas notas altas o F1 dunha [e]/[o]/[u] non se pode medir por debaixo do fundamental: alí non se xulga como "moi pechada"
+    const t = V[v], f1max = Math.max(t.f1[1], f0 * t.k), f1min = f0 >= 300 && "eou".includes(v) ? Math.min(t.f1[0], f0 * 1.05) : t.f1[0];
     const [lo, hi] = t.f2, m2 = 120, m1 = 100;
     const f2in = f2 >= lo && f2 <= hi, f1in = f1 >= f1min && f1 <= f1max;
     const f2near = f2 >= lo - m2 && f2 <= hi + m2, f1near = f1 >= f1min - m1 && f1 <= f1max + m1;
@@ -586,8 +587,17 @@ if (typeof module !== 'undefined') module.exports = Core;
         push(hist.f0, f); fr.f0 = med(hist.f0); fr.f0r = f; curF0 = fr.f0;
         fr.ring = ringDb(sr);
         if (mode === "tubo" && tube.step === 1) { fr.v = true; return fr; }   // co tubo: só nota e intensidade
-        const fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
+        let fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
+        const tgt = fm ? (isAuto(mode) ? nearest(f, fm.f1, fm.f2) : vowel) : null;
+        // nunha [o]/[u] aguda, un F2 por riba de 1600 Hz é un erro de medida (colleu o F3): non se xulga
+        if (fm && (tgt === "o" || tgt === "u") && f >= 300 && fm.f2 > 1600) fm = null;
         if (fm) {
+          // vogais posteriores ([o], [u]) en notas altas: os harmónicos quedan separados e o LPC "pega" o F1 ao 2º harmónico.
+          // Estimamos o F1 entre H1 e H2 segundo a forza relativa de cada un.
+          if ((tgt === "o" || tgt === "u") && f >= 230 && fm.f2 < 1150 && fm.f1 < 2.3 * f && fbuf) {
+            const hz = sr / an.fftSize, amp = k => { let m = -200; for (let i = Math.floor(k * f * 0.96 / hz); i <= Math.ceil(k * f * 1.04 / hz) && i < fbuf.length; i++) m = Math.max(m, fbuf[i]); return Math.pow(10, m / 20); };
+            const a1 = amp(1), a2 = amp(2); if (a1 + a2 > 0) fm.f1 = (a1 * f + a2 * 2 * f) / (a1 + a2);
+          }
           push(hist.f1, fm.f1); push(hist.f2, fm.f2); push(hist.r1, fm.f1, 6); push(hist.r2, fm.f2, 6);
           fr.f1 = med(hist.f1); fr.f2 = med(hist.f2); fr.v = true;
           const sp2 = Math.max(...hist.r2) - Math.min(...hist.r2), mx1 = Math.max(...hist.r1);
