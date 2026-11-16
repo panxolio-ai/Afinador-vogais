@@ -70,13 +70,16 @@ table{border-collapse:collapse;width:100%;font-size:.85rem}
 th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 .tablewrap{overflow-x:auto}
 .err{color:var(--bad);font-weight:600}
-.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
-.tabs button{appearance:none;border:0;background:transparent;color:var(--muted);font:600 .86rem var(--font-ui);padding:10px 0;min-width:0;border-radius:9px;cursor:pointer}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{appearance:none;border:0;background:transparent;color:var(--muted);font:600 .8rem var(--font-ui);padding:10px 0;min-width:0;border-radius:9px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
 .tabs button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .modehelp{margin:-6px 0 0;color:var(--muted);font-size:.88rem;max-width:60ch}
+.canon{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.canon button{appearance:none;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:600 .82rem var(--font-ui);padding:6px 10px;border-radius:8px;cursor:pointer}
+.canon button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--bg)}
 .passage{display:flex;flex-direction:column;gap:6px}
-.models{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.models{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
 .models button{appearance:none;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:600 .95rem var(--font-ui);padding:10px 8px;border-radius:10px;cursor:pointer;text-align:left}
 .models button small{display:block;font:400 .75rem var(--font-ui);color:var(--muted)}
 .models button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--bg)}
@@ -104,6 +107,10 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
 .step small{color:var(--muted);font-size:.78rem}
 .step[data-s="active"]{border-color:var(--accent)}.step[data-s="active"] b{background:var(--accent);color:var(--bg)}
 .step[data-s="done"] b{background:var(--ok);color:#fff}
+.aglevels{display:grid;gap:6px}
+.aglevels .step{appearance:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;width:100%}
+.aglevels .step[data-s="lock"]{opacity:.45;cursor:default}
+.aglink{background:none;border:0;color:var(--muted);font:.8rem var(--font-ui);text-decoration:underline;cursor:pointer;justify-self:start;padding:2px 0}
 .results{display:flex;flex-direction:column;gap:10px}
 .results h2{font:700 1.15rem var(--font-display);margin:4px 0 0}
 .seglist{display:flex;flex-wrap:wrap;gap:6px}
@@ -133,9 +140,10 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
   <header><h1>Afinador de vogais</h1><span class="sub" id="state">Micro apagado</span></header>
 
   <div class="tabs" role="tablist" aria-label="Modo">
-    <button id="m-vogal" data-m="vogal" role="tab">Vogal</button><button id="m-pasaxe" data-m="pasaxe" role="tab">Pasaxe</button><button id="m-tubo" data-m="tubo" role="tab">Tubo</button><button id="m-cancion" data-m="cancion" role="tab">Canción</button><button id="m-estilo" data-m="estilo" role="tab">Estilo</button>
+    <button id="m-vogal" data-m="vogal" role="tab">Vogal</button><button id="m-pasaxe" data-m="pasaxe" role="tab">Pasaxe</button><button id="m-tubo" data-m="tubo" role="tab">Tubo</button><button id="m-cancion" data-m="cancion" role="tab">Canción</button><button id="m-estilo" data-m="estilo" role="tab">Estilo</button><button id="m-agudo" data-m="agudo" role="tab">Agudo</button>
   </div>
   <p class="modehelp" id="modehelp"></p>
+  <div class="canon" id="canonbox" role="group" aria-label="Referencia das vogais"><span>Vogais:</span><button type="button" data-c="xeral">Xerais</button><button type="button" data-c="profe">Coma a miña profe</button></div>
 
   <div class="passage" id="passagebox" hidden>
     <label for="ptext">Texto ou vogais da pasaxe <span class="opt">(opcional)</span></label>
@@ -153,6 +161,7 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <div class="models" role="group" aria-label="Modelo">
       <button data-st="fd" aria-pressed="true">Fischer-Dieskau<small>Barítono lírico · lied</small></button>
       <button data-st="cap" aria-pressed="false">Cappuccilli<small>Barítono verdiano · ópera</small></button>
+      <button data-st="profe" aria-pressed="false">A miña profe<small>Vogais da clase · centro</small></button>
     </div>
     <div class="stylecard" id="stylecard"></div>
   </div>
@@ -171,6 +180,12 @@ th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-v
     <div class="cell"><i>F1</i><b id="f1">—</b></div>
     <div class="cell"><i>F2</i><b id="f2">—</b></div>
     <div class="cell tgt"><i>Meta F2</i><b id="tgt">—</b></div>
+  </div>
+
+  <div class="passage" id="agudobox" hidden>
+    <div class="stylecard" id="agcard"></div>
+    <div class="aglevels" id="aglevels" role="group" aria-label="Niveis"></div>
+    <button class="aglink" id="agreset" type="button">Empezar o exercicio desde o nivel 1</button>
   </div>
 
   <div class="tubesteps" id="tubesteps" hidden>
@@ -354,7 +369,17 @@ const Core = (() => {
     if (out.length < 2) return null;
     return { f1: out[0], f2: out[1], f3: 0, merged: false, back: true };
   }
-  return { yin, formants, formantsBack };
+  // vogal escollida a man. Para [o]/[u] úsase primeiro a análise xeral (11 kHz), que mide ben F1 e F2 cando non os funde.
+  // A de banda baixa (formantsBack) só entra se a xeral colle o F3 como F2 ou funde os dous: con poucos harmónicos
+  // por baixo de 1,5 kHz o LPC de orde 6 pégase aos harmónicos e dá un F1 e un F2 baixos de máis (a [o] parecía pechada).
+  function formantsVogal(x, sr, f0, v) {
+    const n = x.length, g = formants(x.subarray(n - 2048), sr, f0);
+    if (v !== "o" && v !== "u") return g;
+    const f2max = v === "u" ? 1150 : 1350;
+    if (g && !g.merged && g.f2 <= f2max && g.f2 - g.f1 >= 120 && g.f1 < 0.8 * g.f2) return g;
+    return formantsBack(x, sr, f0) || g;
+  }
+  return { yin, formants, formantsBack, formantsVogal };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 </script>
@@ -388,6 +413,24 @@ if (typeof module !== 'undefined') module.exports = Core;
       ],
       src: "Medido en «Ich grolle nicht» (Schumann, con piano) e nun fragmento con orquestra."
     },
+    profe: {
+      name: "Profe", pr: "ela",
+      v: { a: { f1: [620, 760], f2: [1040, 1220], ex: "[a] redonda, sen escurecer: coma na clase" },
+           e: { f1: [500, 640], f2: [1560, 1760], ex: "[e] media-aberta, cara a [ɛ]: máis boca, sen estirar" },
+           i: { f1: [400, 540], f2: [1920, 2180], ex: "[i] con boca: lingua alta e adiante, mandíbula solta" } },
+      ref: { a: [680, 1120], e: [565, 1640], i: [465, 2030] },
+      dDb: { model: "0 a +5 dB", ok: 5, near: 8 }, dR: { model: "≥ −3 dB", ok: -3, near: -8 },
+      vib: { model: "≈ 5–6 Hz", ok: [4.8, 6.4], near: [4.3, 7.0] },
+      live: { push: 8, drop: -9 },
+      traits: [
+        "<b>Vogais con espazo vertical:</b> a [e] e a [i] ábrense un pouco cara á [a] (F1 máis alto), sen perder o brillo.",
+        "<b>[a]:</b> F1 ≈ 680, F2 ≈ 1120. Redonda pero sen escurecer.",
+        "<b>[e] media-aberta, cara a [ɛ]:</b> F1 ≈ 565, F2 ≈ 1640. Non a [e] pechada e estirada.",
+        "<b>[i] con boca:</b> F1 ≈ 465, F2 ≈ 2030. Máis aberta ca unha [i] falada, co anel ben arriba (≈ 0 dB).",
+        "<b>Ollo:</b> só hai medidas do centro (sol3–lá♭3) e de [a], [e] e [i]. A [o], a [u] e o agudo xúlganse coas zonas xerais."
+      ],
+      src: "Gravado por Fran na clase do 16/11/2026 segundo o modelo da profesora (sol3–lá♭3)."
+    },
     cap: {
       name: "Cappuccilli",
       v: { a: { f1: [540, 700], f2: [1080, 1300], k: 1.9 }, e: { f1: [420, 580], f2: [1520, 1850] },
@@ -414,12 +457,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     document.querySelectorAll(".models button").forEach(b => b.setAttribute("aria-pressed", b.dataset.st === style ? "true" : "false"));
     $("stylecard").innerHTML = `<h3>Estilo ${s.name}</h3><ul>${s.traits.map(t => `<li>${t}</li>`).join("")}</ul><p class="sub">${s.src}</p>`;
   }
-  const isAuto = m => m === "pasaxe" || m === "cancion" || m === "estilo";
+  const isAuto = m => m === "pasaxe" || m === "cancion" || m === "estilo" || m === "agudo";
   const HELP = {
     vogal: "Escolle unha vogal e cántaa en notas tidas ou sirenas. Verde: no punto.",
     pasaxe: "Canta un fragmento só con vogais. Escribe o texto para que saiba que vogal toca en cada momento.",
     tubo: "1: canta a sirena polo tubo. 2: quítao e repítea na vogal. Compara se empurras máis sen tubo e mide a abertura.",
     cancion: "Escribe a letra e canta con texto. Ao parar verás cada vogal da letra coloreada segundo saíu.",
+    agudo: "Exercicio guiado para o agudo, por niveis. Non se abre o seguinte ata que o anterior saia ben.",
     estilo: "Escolle un modelo e canta o que queiras: notas, sirenas ou unha ária. A luz compara cada vogal coas do cantante e, ao parar, ves en que te pareces."
   };
   const NOTES = ["do","do♯","re","mi♭","mi","fa","fa♯","sol","lá♭","la","si♭","si"];
@@ -430,6 +474,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   let mode = store.get("modo", "vogal"); if (!HELP[mode]) mode = "vogal";
   style = store.get("estilo", "fd"); if (!STYLES[style]) style = "fd";
   let gateDb = +store.get("gate", "-50");
+  let canon = store.get("canon", "xeral"); if (canon !== "profe") canon = "xeral";
   let running = false, ctx, an, stream, buf, wake;
   const hist = { f0: [], f1: [], f2: [], r1: [], r2: [] }; let trail = [];
   let att = { voiced: 0, ok: 0, silentMs: 0 }, last = 0, curF0 = 0, t0 = 0;
@@ -449,7 +494,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   // ---------- xuízo dunha vogal ----------
   function judge(v, f0, f1, f2) {
     // nas notas altas o F1 dunha [e]/[o]/[u] non se pode medir por debaixo do fundamental: alí non se xulga como "moi pechada"
-    const t = V[v], f1max = Math.max(t.f1[1], f0 * t.k), f1min = f0 >= 300 && "eou".includes(v) ? Math.min(t.f1[0], f0 * 1.05) : t.f1[0];
+    const t = V[v], f1max = Math.max(t.f1[1], f0 * t.k), f1min = f0 >= 300 && "eiou".includes(v) ? Math.min(t.f1[0], f0 * 1.05) : t.f1[0];
     const [lo, hi] = t.f2, m2 = 120, m1 = 100;
     const f2in = f2 >= lo && f2 <= hi, f1in = f1 >= f1min && f1 <= f1max;
     const f2near = f2 >= lo - m2 && f2 <= hi + m2, f1near = f1 >= f1min - m1 && f1 <= f1max + m1;
@@ -516,9 +561,12 @@ if (typeof module !== 'undefined') module.exports = Core;
     mode = m; store.set("modo", m);
     document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.m === m ? "true" : "false"));
     $("modehelp").textContent = HELP[m];
-    V = m === "estilo" ? styleZones(STYLES[style]) : VG;
+    V = m === "estilo" ? styleZones(STYLES[style]) : canon === "profe" ? styleZones(STYLES.profe) : VG;
+    $("canonbox").hidden = m === "estilo"; $("tgt").textContent = isAuto(m) ? "—" : V[vowel].f2[0] + "–" + V[vowel].f2[1];
+    document.querySelectorAll("#canonbox button").forEach(b => b.setAttribute("aria-pressed", b.dataset.c === canon ? "true" : "false"));
+    $("ttable").innerHTML = "<tr><th>Vogal</th><th>F1 (Hz)</th><th>F2 (Hz)</th></tr>" + Object.entries(V).map(([k, t]) => `<tr><td>[${k}]</td><td>${t.f1[0]}–${t.f1[1]}</td><td>${t.f2[0]}–${t.f2[1]}</td></tr>`).join("");
     $("passagebox").hidden = m !== "pasaxe"; $("songbox").hidden = m !== "cancion"; $("stylebox").hidden = m !== "estilo"; $("vowelbox").hidden = isAuto(m);
-    $("tubesteps").hidden = m !== "tubo"; $("scorebox").hidden = m === "tubo";
+    $("tubesteps").hidden = m !== "tubo"; $("scorebox").hidden = m === "tubo" || m === "agudo"; $("agudobox").hidden = m !== "agudo";
     $("results").hidden = true; $("results").innerHTML = ""; $("reset").hidden = true;
     tube = { step: 0, a: null, b: null, offset: null, offs: [] }; renderTubeSteps();
     trail = []; frames = [];
@@ -526,6 +574,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (m === "pasaxe") { $("go").textContent = "Gravar pasaxe"; setLight("idle", "·"); setHint("Canta a pasaxe en vogais", "Preme Gravar e, ao rematar, Parar"); updateSeq(); }
     if (m === "cancion") { $("go").textContent = "Cantar a canción"; setLight("idle", "·"); setHint("Canta a canción con texto", "Preme o botón e, ao rematar, Parar"); updateSong(); }
     if (m === "estilo") { $("go").textContent = "Cantar no estilo"; setLight("idle", "·"); renderStyle(); setHint("Canta como " + STYLES[style].name, "Notas tidas, sirenas ou unha frase. Preme Parar ao rematar"); }
+    if (m === "agudo") { setLight("idle", "·"); renderAgudo(); }
     if (m === "tubo") { $("go").textContent = "1 · Gravar co tubo"; setLight("idle", vowel); setHint("Paso 1: canta a sirena polo tubo", "Despois repetirás sen tubo en [" + vowel + "]"); }
     showScore(null); draw();
   }
@@ -613,10 +662,8 @@ if (typeof module !== 'undefined') module.exports = Core;
         push(hist.f0, f); fr.f0 = med(hist.f0); fr.f0r = f; curF0 = fr.f0;
         fr.ring = ringDb(sr);
         if (mode === "tubo" && tube.step === 1) { fr.v = true; return fr; }   // co tubo: só nota e intensidade
-        let fm = null;
-        // [o]/[u] escollida a man: análise de banda baixa (a xeral confunde o F2 con picos de 1300–2800 Hz)
-        if (!isAuto(mode) && (vowel === "o" || vowel === "u")) fm = Core.formantsBack(buf, sr, fr.f0);
-        if (!fm) fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
+        // vogal escollida a man: en [o]/[u] combina a análise xeral e a de banda baixa (ver Core.formantsVogal)
+        let fm = isAuto(mode) ? Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0) : Core.formantsVogal(buf, sr, fr.f0, vowel);
         const tgt = fm ? (isAuto(mode) ? nearest(f, fm.f1, fm.f2) : vowel) : null;
         // nunha [o]/[u] aguda, un F2 por riba de 1600 Hz é un erro de medida (colleu o F3): non se xulga
         if (fm && (tgt === "o" || tgt === "u") && f >= 300 && fm.f2 > 1600) fm = null;
@@ -630,7 +677,9 @@ if (typeof module !== 'undefined') module.exports = Core;
           push(hist.f1, fm.f1); push(hist.f2, fm.f2); push(hist.r1, fm.f1, 6); push(hist.r2, fm.f2, 6);
           fr.f1 = med(hist.f1); fr.f2 = med(hist.f2); fr.v = true;
           const sp2 = Math.max(...hist.r2) - Math.min(...hist.r2), mx1 = Math.max(...hist.r1);
-          fr.unst = hist.r2.length >= 4 && (sp2 > 600 || mx1 > 1150 || fr.f1 > fr.f2 * 0.75);
+          // nunha [o]/[u] aguda o F1 achégase ao F2 cando a vogal se abre: iso non é inestabilidade, é o que hai que avisar
+          const backTop = (tgt === "o" || tgt === "u") && fr.f0 >= PASS_HZ && fr.f2 < 1300;
+          fr.unst = hist.r2.length >= 4 && (sp2 > 600 || mx1 > 1150 || (!backTop && fr.f1 > fr.f2 * 0.75));
         } else if (hist.r2.length) { fr.v = true; fr.unst = true; fr.f1 = med(hist.f1); fr.f2 = med(hist.f2); }
       }
     }
@@ -696,12 +745,121 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (r) sub = st.name.split("-")[0] + ": F1 ≈ " + r[0] + ", F2 ≈ " + r[1] + " · " + sub; }
     fr.vw = v;
     setLight(s, auto ? v : null); setHint(tip, auto ? "Parece [" + v + "] · " + sub : sub);
+    if (mode === "agudo") agudoLive(fr, v);
     fr.s = s; trail.push({ f1: fr.f1, f2: fr.f2, s }); if (trail.length > 40) trail.shift();
     if (mode === "vogal") {
       if (att.silentMs > 900) att = { voiced: 0, ok: 0, silentMs: 0 };
       att.voiced++; if (s === "ok") att.ok++; att.silentMs = 0; showScore(100 * att.ok / att.voiced);
     } else { att.silentMs = 0; }
     draw();
+  }
+
+  // ---------- modo agudo: exercicio guiado por niveis ----------
+  // Compara o agudo coa referencia do centro (nivel 1) e a [a] coa [i] na mesma nota.
+  // Un nivel só se abre cando o anterior sae ben.
+  const AG = [
+    { t: "Referencia no centro", nt: "mi3–do4", lo: 165, hi: 262, need: ["i", "e", "a"], min: 24,
+      how: "Nunha nota cómoda entre sol3 e si♭3, canta [i], [e] e [a] nesta orde, tidas, uns 2 segundos cada unha, co teu volume normal. É a medida coa que se compara despois o agudo." },
+    { t: "[i] no agudo", nt: "re♭4–mi♭4", lo: 270, hi: 322, need: ["i"], min: 20,
+      how: "Arpexo 1-3-5-8 en [i] ata re♭4–re4, ou unha [i] tida nesa nota. Tan lixeira coma co tubo: o anel non debe baixar e o volume non debe subir máis de 5 dB sobre o centro." },
+    { t: "[i] → [e] → [a] en re♭4", nt: "re♭4–re4", lo: 270, hi: 303, need: ["i", "e", "a"], min: 10,
+      how: "Nunha soa respiración e na mesma nota (re♭4–re4): [i] dous tempos, [e] dous tempos e [a] dous tempos. Só cambian a lingua e a mandíbula; a forza, igual. A [a] ten que conservar o anel da [i]." },
+    { t: "[i] → [e] → [a] en mi♭4", nt: "mi♭4–mi4", lo: 302, hi: 340, need: ["i", "e", "a"], min: 10,
+      how: "O mesmo, en mi♭4–mi4." },
+    { t: "[i] → [e] → [a] en fa♯4", nt: "fa4–fa♯4", lo: 340, hi: 392, need: ["i", "e", "a"], min: 10,
+      how: "O mesmo, en fa4–fa♯4. Se cansas, descansa: mellor dúas veces ben ca cinco forzadas." },
+    { t: "Frase con agudo", nt: "", lo: 0, hi: 0, need: [], min: 0,
+      how: "Canta unha frase da aria que vaia do centro ao agudo (desde re4). O anel ten que subir co agudo e o volume quedar parecido ao do centro." }
+  ];
+  let agMax = Math.max(0, Math.min(+store.get("agudo_max", "0") || 0, AG.length - 1));
+  let agLv = Math.max(0, Math.min(+store.get("agudo_nivel", "0") || 0, agMax));
+  let agBase = null; try { agBase = JSON.parse(store.get("agudo_base", "null")); } catch {}
+  const sgn = x => (x >= 0 ? "+" : "−") + Math.abs(Math.round(x));
+  const agFresh = () => !!(agBase && agBase.ts && Date.now() - agBase.ts < 3 * 3600e3);   // o volume depende de onde estea o micro: referencia do mesmo día
+  function renderAgudo() {
+    $("aglevels").innerHTML = AG.map((L, i) => {
+      const st = i === agLv ? "active" : i < agMax ? "done" : i > agMax ? "lock" : "";
+      return `<button class="step" type="button" data-i="${i}" data-s="${st}" ${i > agMax ? 'aria-disabled="true"' : ""}><b>${i < agMax ? "✓" : i + 1}</b><span>${L.t}</span><small>${i > agMax ? "pechado" : i < agMax ? "superado" : i === agLv ? "agora" : "aberto"}</small></button>`;
+    }).join("");
+    const L = AG[agLv];
+    $("agcard").innerHTML = `<h3>Nivel ${agLv + 1} · ${L.t}</h3><p>${L.how}</p>` + (agLv > 0 && agLv < AG.length - 1 && !agFresh() ? '<p class="sub">Primeiro repite o nivel 1: a referencia do centro ten que ser desta sesión, co micro no mesmo sitio.</p>' : "");
+    if (!running) { $("go").textContent = "Comezar nivel " + (agLv + 1); setHint("Nivel " + (agLv + 1) + ": " + L.t, "Preme Comezar e canta. Ao rematar, Parar"); }
+  }
+  function agSel(i) { if (running || i > agMax) return; agLv = i; store.set("agudo_nivel", String(i)); $("results").hidden = true; renderAgudo(); }
+  const agSt = x => x.length ? { n: x.length, db: med(x.map(f => f.db)), ring: med(x.map(f => f.ring)), f1: med(x.map(f => f.f1)), f2: med(x.map(f => f.f2)) } : { n: 0 };
+  // As vogais cántanse en orde ([i] → [e] → [a]). Non se clasifican unha a unha (unha [i] aberta e unha [e] pechada
+  // case coinciden): pártese a toma en tres tramos polo F2 e asígnanse en orde.
+  function agSplit(fs, need, min) {
+    const S = {}; if (need.length === 1) { S[need[0]] = agSt(fs); return S; }
+    const x = fs.map(f => f.f2), n = x.length, c = [0], c2 = [0];
+    for (let i = 0; i < n; i++) { c.push(c[i] + x[i]); c2.push(c2[i] + x[i] * x[i]); }
+    const sse = (a, b) => { const m = b - a; if (m <= 0) return 0; const s1 = c[b] - c[a]; return c2[b] - c2[a] - s1 * s1 / m; };
+    let best = null;
+    if (n >= 3 * min) for (let i = min; i <= n - 2 * min; i++) for (let j = i + min; j <= n - min; j++) {
+      const e = sse(0, i) + sse(i, j) + sse(j, n); if (!best || e < best.e) best = { e, i, j }; }
+    if (!best) { need.forEach((v, k) => S[v] = { n: Math.floor(n / 3) }); return S; }
+    const parts = [fs.slice(0, best.i), fs.slice(best.i, best.j), fs.slice(best.j)];
+    need.forEach((v, k) => S[v] = agSt(parts[k]));
+    S.ordered = S.i.f2 > S.e.f2 + 80 && S.e.f2 > S.a.f2 + 150;
+    return S;
+  }
+  function agudoLive(fr, v) {
+    const L = AG[agLv]; if (agLv === AG.length - 1) return;
+    if (fr.f0 < L.lo) { setHint("Sube á nota do nivel", L.nt + " · agora " + noteName(fr.f0)); return; }
+    if (fr.f0 >= L.hi) { setHint("Baixa á nota do nivel", L.nt + " · agora " + noteName(fr.f0)); return; }
+    const fs = frames.filter(f => f.v && !f.unst && f.f1 && f.f0 >= L.lo && f.f0 < L.hi);
+    const got = (fs.length * 0.05).toFixed(1).replace(".", ",") + " s na nota (meta ≈ " + (L.need.length * L.min * 0.05 * 1.5).toFixed(0) + " s)";
+    if (agLv === 0 || !agFresh() || agBase.ring[v] == null) { setHint("[" + v + "] · " + noteName(fr.f0), got); return; }
+    const dR = fr.ring - agBase.ring[v], dD = fr.db - agBase.db[v];
+    setHint("[" + v + "] · anel " + sgn(dR) + " dB · volume " + sgn(dD) + " dB", "fronte ao teu centro · " + got);
+  }
+  function agudoReport() {
+    const L = AG[agLv], R = $("results"); R.hidden = false;
+    const vf = frames.filter(f => f.v && !f.unst && f.f1 && f.ring != null);
+    const rows = []; let pass = true, tip = "";
+    const row = (name, val, goal, ok) => { rows.push(`<tr><td>${name}</td><td style="white-space:nowrap"><span class="sdot" data-s="${ok ? "ok" : "bad"}"></span>${val}</td><td style="white-space:nowrap">${goal}</td></tr>`); if (!ok) pass = false; };
+    if (agLv === AG.length - 1) {
+      const k = topCheck(frames);
+      if (!k) { pass = false; tip = "Non houbo abondo de centro e de agudo (desde re4). Canta unha frase que pase polos dous."; }
+      else {
+        row("Volume no agudo", sgn(k.dDb) + " dB", "≤ +5 dB", k.dDb <= 5);
+        row("Anel no agudo", sgn(k.dR) + " dB", "≥ 0 dB (ideal +2)", k.dR >= 0);
+        tip = k.dDb > 5 ? "Empurras: canta a frase alta coa sensación dos niveis 3–5." : k.dR < 0 ? "O anel cae ao subir: pensa a [a] alta desde a [i], coma nos niveis 3–5." : k.dR >= 2 ? "O anel sobe co agudo sen máis volume: así é." : "Mantés o anel sen empurrar. Para que suba máis, pensa a vogal alta desde a [i].";
+      }
+    } else {
+      const fs = vf.filter(f => f.f0 >= L.lo && f.f0 < L.hi), S = agSplit(fs, L.need, L.min);
+      for (const v of L.need) { row("[" + v + "] en " + L.nt, (S[v].n * 0.05).toFixed(1).replace(".", ",") + " s", "≥ " + (L.min * 0.05).toFixed(1).replace(".", ",") + " s", S[v].n >= L.min); }
+      if (!pass) tip = "Non se detectou abondo de cada vogal nesa nota. Mira a nota na pantalla e mantén cada vogal un pouco máis.";
+      else if (L.need.length > 1 && !S.ordered) { pass = false; tip = "Non se distinguen ben as tres vogais. Cántaas nesta orde, [i], [e] e [a], cada unha clara e tida (F2: [i] " + Math.round(S.i.f2) + ", [e] " + Math.round(S.e.f2) + ", [a] " + Math.round(S.a.f2) + ")."; }
+      else if (agLv === 0) {
+        agBase = { db: {}, ring: {}, ts: Date.now() }; for (const v of L.need) { agBase.db[v] = S[v].db; agBase.ring[v] = S[v].ring; }
+        store.set("agudo_base", JSON.stringify(agBase));
+        tip = "Referencia gardada. Anel no centro: [i] " + sgn(agBase.ring.i) + ", [e] " + sgn(agBase.ring.e) + ", [a] " + sgn(agBase.ring.a) + " dB.";
+      } else if (!agFresh()) { pass = false; tip = agBase ? "A referencia do centro é doutra sesión: repite o nivel 1 (un minuto) para comparar co micro na mesma posición. Os niveis xa superados seguen abertos." : "Falta a referencia do centro: fai antes o nivel 1."; }
+      else if (agLv === 1) {
+        const dR = S.i.ring - agBase.ring.i, dD = S.i.db - agBase.db.i;
+        row("Anel da [i] fronte ao centro", sgn(dR) + " dB", "≥ −1 dB", dR >= -1);
+        row("Volume da [i] fronte ao centro", sgn(dD) + " dB", "≤ +5 dB", dD <= 5);
+        tip = dD > 5 ? "Demasiada voz: repite tan lixeiro coma co tubo." : dR < -1 ? "A [i] perde punta arriba: lingua alta e adiante, sen apertar." : "A [i] chega arriba con punta e sen forza.";
+      } else {
+        // cada vogal compárase co seu propio centro: a [a] ten sempre menos anel ca a [i], o que conta é que non o perda ao subir
+        const dI = S.i.ring - agBase.ring.i, dA = S.a.ring - agBase.ring.a, dV = S.a.db - agBase.db.a, dVi = S.i.db - agBase.db.i;
+        row("Anel da [i] fronte ao centro", sgn(dI) + " dB", "≥ −2 dB", dI >= -2);
+        row("Anel da [a] fronte ao centro", sgn(dA) + " dB", "≥ −1 dB (ideal +2)", dA >= -1);
+        row("Volume da [a] fronte ao centro", sgn(dV) + " dB", "≤ +5 dB", dV <= 5);
+        row("Forza da [a] fronte á da [i]", sgn(dV - dVi) + " dB", "≤ +3 dB", dV - dVi <= 3);
+        tip = dV > 5 || dV - dVi > 3 ? "Na [a] metes máis voz ca na [i]: a mesma forza, só cambia a vogal." : dA < -1 ? "A [a] perde anel ao subir: abre menos a mandíbula e mantén a punta da [i]." : dI < -2 ? "A [i] xa chega sen punta: volve un momento ao nivel 2." : dA >= 2 ? "A [a] gaña anel no agudo sen máis forza: así é." : "A [a] mantén o seu anel no agudo sen máis forza.";
+      }
+    }
+    if (pass && agLv === agMax && agMax < AG.length - 1) { agMax++; store.set("agudo_max", String(agMax)); }
+    const last = agLv === AG.length - 1;
+    R.innerHTML = `<h2>Nivel ${agLv + 1}: ${pass ? (last ? "superado. Exercicio completo" : "superado") : "aínda non"}</h2>
+      <div class="verdict"><p>${tip}</p>${pass ? "" : "<p>Repite o nivel. O seguinte ábrese cando este saia ben.</p>"}</div>
+      <div class="tablewrap"><table class="rtable"><tr><th></th><th>Ti</th><th>Meta</th></tr>${rows.join("")}</table></div>
+      ${pass && !last ? '<button class="btn" id="agnext" type="button">Seguinte nivel →</button>' : ""}`;
+    renderAgudo(); $("go").textContent = "Repetir nivel " + (agLv + 1);
+    setHint(pass ? "Nivel superado" : "Aínda non", pass && !last ? "Pasa ao seguinte nivel cando queiras" : "Le o resultado abaixo");
+    const nx = $("agnext"); if (nx) nx.addEventListener("click", () => agSel(agLv + 1));
   }
 
   // ---------- modo tubo ----------
@@ -904,7 +1062,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     showScore(sim);
     R.innerHTML = `<h2>Parecido con ${s.name}${sim != null ? ": " + Math.round(sim) + " %" : ""}</h2>
       <p class="sub">Vogais recoñecidas automaticamente. F1 / F2 en Hz: o F1 indica a abertura e o F2 o brillo.</p>
-      <div class="tablewrap"><table class="rtable"><tr><th></th><th>Ti</th><th>${s.name.split("-")[0]}</th><th>Que cambiar</th></tr>${rows.map(r => r.html).join("")}</table></div>`;
+      <div class="tablewrap"><table class="rtable"><tr><th></th><th>Ti</th><th>${s.name.split("-")[0]}</th><th>Que cambiar</th></tr>${rows.map(r => s.pr ? r.html.replace(/\b(coma|ca|pero) el\b/g, "$1 " + s.pr) : r.html).join("")}</table></div>`;
     trail = vf.map(f => ({ f1: f.f1, f2: f.f2, s: judge(nearest(f.f0, f.f1, f.f2), f.f0, f.f1, f.f2).s })).slice(-500); draw();
   }
 
@@ -1001,6 +1159,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (mode === "pasaxe") { setHint("Gravando a pasaxe", "Canta só con vogais. Preme Parar ao rematar"); showScore(null); }
     if (mode === "estilo") { setHint("Gravando no estilo " + STYLES[style].name, "Canta. Preme Parar ao rematar"); showScore(null); }
     if (mode === "cancion") { setHint("Gravando a canción", "Canta con texto. Preme Parar ao rematar"); showScore(null); }
+    if (mode === "agudo") { $("results").hidden = true; setHint("Nivel " + (agLv + 1) + ": " + AG[agLv].t, "Preme Parar ao rematar"); }
     if (mode === "tubo") { if (tube.step === 0) tube.step = 1; renderTubeSteps();
       if (tube.step === 2) { tube.offs = []; tube.offset = null; setHint("Agora sen tubo, en [" + vowel + "]", "A mesma sirena, coa sensación do tubo"); } }
     requestAnimationFrame(tick);
@@ -1015,6 +1174,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (mode === "pasaxe") { $("go").textContent = "Gravar outra vez"; setHint("Pasaxe analizada", "Revisa as vogais en ámbar ou vermello"); passageReport(); }
     if (mode === "estilo") { $("go").textContent = "Cantar outra vez"; setHint("Comparación lista", "Mira abaixo en que te pareces a " + STYLES[style].name); styleReport(); }
     if (mode === "cancion") { $("go").textContent = "Cantar outra vez"; setHint("Canción analizada", "Mira as vogais coloreadas na letra"); songReport(); }
+    if (mode === "agudo") agudoReport();
     if (mode === "tubo") {
       if (tube.step === 1) { tube.a = frames.slice(); tube.map = levelMap(tube.a); tube.step = 2; renderTubeSteps();
         const A = stats(tube.a); $("st1v").textContent = A ? noteName(A.lo) + "–" + noteName(A.hi) : "curta";
@@ -1037,6 +1197,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (mode === "tubo" && tube.step === 3) resetTube();
     start();
   });
+  document.querySelectorAll("#canonbox button").forEach(b => b.addEventListener("click", () => { if (running) return; canon = b.dataset.c; store.set("canon", canon); setMode(mode); }));
+  $("aglevels").addEventListener("click", e => { const b = e.target.closest(".step"); if (b) agSel(+b.dataset.i); });
+  $("agreset").addEventListener("click", () => { if (running) return; agMax = 0; agLv = 0; agBase = null; store.set("agudo_max", "0"); store.set("agudo_nivel", "0"); store.set("agudo_base", "null"); $("results").hidden = true; renderAgudo(); });
   $("reset").addEventListener("click", () => { if (running) stop(true); else closeMic(); resetTube(); });
   $("recon").checked = rec.on; $("recon").addEventListener("change", e => { rec.on = e.target.checked; store.set("gravar", rec.on ? "1" : "0"); });
   $("share").addEventListener("click", shareRec);
