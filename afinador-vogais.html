@@ -236,8 +236,10 @@ const Core = (() => {
     for (let t = 1; t <= tmax + 1; t++) { run += d[t]; dp[t] = run > 0 ? d[t] * t / run : 1; }
     let gmin = 1;
     for (let t = tmin; t < tmax; t++) if (dp[t] < gmin) gmin = dp[t];
+    // nun glissando rápido ou nun son algo áspero o mínimo queda entre 0,2 e 0,35: segue sendo voz, non silencio
+    const thr = gmin < 0.2 ? 0.2 : 0.35;
     for (let t = tmin; t < tmax; t++) {
-      if (dp[t] < 0.2 && dp[t] <= gmin + 0.05) {
+      if (dp[t] < thr && dp[t] <= gmin + 0.05) {
         while (t + 1 < tmax && dp[t + 1] < dp[t]) t++;
         const a = dp[t - 1], b = dp[t], c = dp[t + 1], den = a - 2 * b + c;
         const sh = den !== 0 ? 0.5 * (a - c) / den : 0;
@@ -258,8 +260,8 @@ const Core = (() => {
     for (let n = 0; n < taps; n++) h[n] /= s;
     return (firCache[key] = h);
   }
-  function decimate(x, D) {
-    const h = fir(D), T = h.length, n = Math.floor((x.length - T) / D), y = new Float64Array(n);
+  function decimate(x, D, taps = 63) {
+    const h = fir(D, taps), T = h.length, n = Math.floor((x.length - T) / D), y = new Float64Array(n);
     for (let i = 0; i < n; i++) { let s = 0; const o = i * D; for (let k = 0; k < T; k++) s += h[k] * x[o + k]; y[i] = s; }
     return y;
   }
@@ -328,7 +330,31 @@ const Core = (() => {
     if (out.length < 2) return null;
     return { f1: out[0], f2: out[1], f3: out[2] || 0, merged };
   }
-  return { yin, formants };
+  // vogais posteriores ([o], [u]): F1 e F2 están por baixo de ~1100 Hz e moi xuntos. Coa análise a 11 kHz
+  // o LPC fúndeos nun só polo e o "F2" acaba en 1300–2800 Hz. Aquí analízase só a banda baixa (fs ≈ 3 kHz).
+  // x: bloque longo (~4096 mostras), para que queden abondas mostras despois de diezmar
+  function formantsBack(x, sr, f0) {
+    const D = Math.max(1, Math.round(sr / 3000)), fs = sr / D;
+    const y = decimate(x, D, Math.max(63, 8 * D + 1)); if (y.length < 120) return null;
+    const N = y.length, s = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const pe = i > 0 ? y[i] - 0.5 * y[i - 1] : y[i];
+      s[i] = pe * (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (N - 1)));
+    }
+    const a = lpc(s, 6); if (!a) return null;
+    const { re, im } = roots(a), out = [];
+    const minF = Math.max(150, f0 ? f0 * 0.85 : 150);
+    for (let i = 0; i < re.length; i++) {
+      if (im[i] <= 0) continue;
+      const f = Math.atan2(im[i], re[i]) * fs / (2 * Math.PI);
+      const bw = -Math.log(Math.hypot(re[i], im[i])) * fs / Math.PI;
+      if (f > minF && f < 1300 && bw < 600) out.push(f);
+    }
+    out.sort((u, v) => u - v);
+    if (out.length < 2) return null;
+    return { f1: out[0], f2: out[1], f3: 0, merged: false, back: true };
+  }
+  return { yin, formants, formantsBack };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 </script>
@@ -587,7 +613,10 @@ if (typeof module !== 'undefined') module.exports = Core;
         push(hist.f0, f); fr.f0 = med(hist.f0); fr.f0r = f; curF0 = fr.f0;
         fr.ring = ringDb(sr);
         if (mode === "tubo" && tube.step === 1) { fr.v = true; return fr; }   // co tubo: só nota e intensidade
-        let fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
+        let fm = null;
+        // [o]/[u] escollida a man: análise de banda baixa (a xeral confunde o F2 con picos de 1300–2800 Hz)
+        if (!isAuto(mode) && (vowel === "o" || vowel === "u")) fm = Core.formantsBack(buf, sr, fr.f0);
+        if (!fm) fm = Core.formants(buf.subarray(buf.length - 2048), sr, fr.f0);
         const tgt = fm ? (isAuto(mode) ? nearest(f, fm.f1, fm.f2) : vowel) : null;
         // nunha [o]/[u] aguda, un F2 por riba de 1600 Hz é un erro de medida (colleu o F3): non se xulga
         if (fm && (tgt === "o" || tgt === "u") && f >= 300 && fm.f2 > 1600) fm = null;
