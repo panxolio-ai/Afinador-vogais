@@ -414,22 +414,26 @@ if (typeof module !== 'undefined') module.exports = Core;
       src: "Medido en «Ich grolle nicht» (Schumann, con piano) e nun fragmento con orquestra."
     },
     profe: {
+      // Medido nas tomas que a profesora deu por boas (clase do 23/11/2026, do3–do4; a mellor, en do4).
+      // As zonas cambian coa nota: "f1/f2" valen ata fa♯3–sol3 e "hi" en do4; entre medias interpólanse.
       name: "Profe", pr: "ela",
-      v: { a: { f1: [600, 800], f2: [1000, 1300], ex: "[a] redonda, sen escurecer: coma na clase" },
-           e: { f1: [470, 660], f2: [1520, 1820], ex: "[e] media-aberta, cara a [ɛ]: máis boca, sen estirar" },
-           i: { f1: [380, 560], f2: [1880, 2250], ex: "[i] con boca: lingua alta e adiante, mandíbula solta" } },
-      ref: { a: [680, 1120], e: [565, 1640], i: [465, 2030] },
+      v: { a: { f1: [570, 760], f2: [1000, 1220], hi: { f1: [630, 830], f2: [990, 1150] }, ex: "[a] redonda e con espazo: coma nas tomas que deu por boas" },
+           e: { f1: [420, 620], f2: [1560, 2000], hi: { f1: [500, 660], f2: [1520, 1980] }, ex: "[e] con boca e lingua adiante: espazo vertical sen escurecer" },
+           i: { f1: [320, 480], f2: [1900, 2250], hi: { f1: [460, 640], f2: [1800, 2100] }, ex: "[i] con boca: mandíbula solta, lingua alta e adiante" },
+           o: { f1: [420, 660], f2: [800, 1080], hi: { f1: [500, 680], f2: [800, 1070] }, ex: "[o] redonda e con espazo, sen pechala cara a [u]" } },
+      ref: { a: [670, 1120], e: [517, 1748], i: [384, 2053], o: [569, 936] },
       dDb: { model: "0 a +5 dB", ok: 5, near: 8 }, dR: { model: "≥ −3 dB", ok: -3, near: -8 },
       vib: { model: "≈ 5–6 Hz", ok: [4.8, 6.4], near: [4.3, 7.0] },
       live: { push: 8, drop: -9 },
       traits: [
-        "<b>Vogais con espazo vertical:</b> a [e] e a [i] ábrense un pouco cara á [a] (F1 máis alto), sen perder o brillo.",
-        "<b>[a]:</b> F1 ≈ 680, F2 ≈ 1120. Redonda pero sen escurecer.",
-        "<b>[e] media-aberta, cara a [ɛ]:</b> F1 ≈ 565, F2 ≈ 1640. Non a [e] pechada e estirada.",
-        "<b>[i] con boca:</b> F1 ≈ 465, F2 ≈ 2030. Máis aberta ca unha [i] falada, co anel ben arriba (≈ 0 dB).",
-        "<b>Ollo:</b> só hai medidas do centro (sol3–lá♭3) e de [a], [e] e [i]. A [o], a [u] e o agudo xúlganse coas zonas xerais."
+        "<b>Vogais redondas e unidas:</b> mandíbula solta pero lingua adiante; a [e] e a [i] non escurecen.",
+        "<b>[a]:</b> F1 ≈ 670, F2 ≈ 1120 no centro; en do4 máis aberta e escura, ≈ 750 / 1050.",
+        "<b>[e]:</b> F1 ≈ 520, F2 ≈ 1750 no centro (clara); en do4 ábrese, ≈ 560 / 1650. Non por baixo de F2 ≈ 1560.",
+        "<b>[i]:</b> F1 ≈ 385, F2 ≈ 2050 no centro; en do4 ábrese ata ≈ 570 / 1920, con moito anel.",
+        "<b>[o] redonda:</b> F1 ≈ 570, F2 ≈ 935; en do4 ≈ 590 / 960.",
+        "<b>Ollo:</b> medidas ata do4. A [u] e as notas de re4 para arriba xúlganse coas zonas de do4 ou coas xerais."
       ],
-      src: "Gravado por Fran na clase do 16/11/2026 segundo o modelo da profesora (sol3–lá♭3)."
+      src: "Tomas aprobadas pola profesora na clase do 23/11/2026 (do3–do4). A mellor, en do4: [a] → [e] → [i] → [a] → [o]."
     },
     cap: {
       name: "Cappuccilli",
@@ -492,9 +496,15 @@ if (typeof module !== 'undefined') module.exports = Core;
   const bark = f => 26.81 * f / (1960 + f) - 0.53;
 
   // ---------- xuízo dunha vogal ----------
+  // zona dunha vogal para unha nota: se o perfil trae zonas para do4 ("hi"), interpólase entre 200 Hz e 262 Hz
+  function zoneAt(v, f0) {
+    const t = V[v]; if (!t.hi || !(f0 > 200)) return t;
+    const w = Math.min(1, (f0 - 200) / 62), mix = (a, b) => [Math.round(a[0] + (b[0] - a[0]) * w), Math.round(a[1] + (b[1] - a[1]) * w)];
+    return { ...t, f1: mix(t.f1, t.hi.f1), f2: mix(t.f2, t.hi.f2) };
+  }
   function judge(v, f0, f1, f2) {
     // nas notas altas o F1 dunha [e]/[o]/[u] non se pode medir por debaixo do fundamental: alí non se xulga como "moi pechada"
-    const t = V[v], f1max = Math.max(t.f1[1], f0 * t.k), f1min = f0 >= 300 && "eiou".includes(v) ? Math.min(t.f1[0], f0 * 1.05) : t.f1[0];
+    const t = zoneAt(v, f0), f1max = Math.max(t.f1[1], f0 * t.k), f1min = f0 >= 300 && "eiou".includes(v) ? Math.min(t.f1[0], f0 * 1.05) : t.f1[0];
     const [lo, hi] = t.f2, m2 = 120, m1 = 100;
     const f2in = f2 >= lo && f2 <= hi, f1in = f1 >= f1min && f1 <= f1max;
     const f2near = f2 >= lo - m2 && f2 <= hi + m2, f1near = f1 >= f1min - m1 && f1 <= f1max + m1;
@@ -515,7 +525,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   // distancia (en Bark) dun punto á zona dunha vogal: 0 dentro
   function zdist(v, f0, f1, f2) {
-    const t = V[v], f1max = Math.max(t.f1[1], f0 * t.k);
+    const t = zoneAt(v, f0), f1max = Math.max(t.f1[1], f0 * t.k);
     const b1 = bark(f1), b2 = bark(f2);
     const d1 = Math.max(0, bark(t.f1[0]) - b1, b1 - bark(f1max));
     const d2 = Math.max(0, bark(t.f2[0]) - b2, b2 - bark(t.f2[1]));
@@ -722,7 +732,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       return;
     }
     $("f1").textContent = Math.round(fr.f1); $("f2").textContent = Math.round(fr.f2);
-    let v = vowel; if (auto) { v = nearest(fr.f0, fr.f1, fr.f2); $("tgt").textContent = V[v].f2[0] + "–" + V[v].f2[1]; }
+    let v = vowel; if (auto) v = nearest(fr.f0, fr.f1, fr.f2); { const zt = zoneAt(v, fr.f0); $("tgt").textContent = zt.f2[0] + "–" + zt.f2[1]; }
     const j = judge(v, fr.f0, fr.f1, fr.f2);
     let s = j.s, tip = j.tip, sub = j.sub;
     if (mode === "tubo" && tube.step === 2) {
