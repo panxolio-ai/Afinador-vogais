@@ -416,11 +416,12 @@ if (typeof module !== 'undefined') module.exports = Core;
     profe: {
       // Medido nas tomas que a profesora deu por boas (clase do 23/11/2026, do3–do4; a mellor, en do4).
       // As zonas cambian coa nota: "f1/f2" valen ata fa♯3–sol3 e "hi" en do4; entre medias interpólanse.
+      // Ancho: o 94 % central das tomas aprobadas + a marxe de erro da medida (±40 Hz en F1, ±60 Hz en F2), e nunca moito máis estreitas ca as xerais.
       name: "Profe", pr: "ela",
-      v: { a: { f1: [570, 760], f2: [1000, 1220], hi: { f1: [630, 830], f2: [990, 1150] }, ex: "[a] redonda e con espazo: coma nas tomas que deu por boas" },
-           e: { f1: [420, 620], f2: [1560, 2000], hi: { f1: [500, 660], f2: [1520, 1980] }, ex: "[e] con boca e lingua adiante: espazo vertical sen escurecer" },
-           i: { f1: [320, 480], f2: [1900, 2250], hi: { f1: [460, 640], f2: [1800, 2100] }, ex: "[i] con boca: mandíbula solta, lingua alta e adiante" },
-           o: { f1: [420, 660], f2: [800, 1080], hi: { f1: [500, 680], f2: [800, 1070] }, ex: "[o] redonda e con espazo, sen pechala cara a [u]" } },
+      v: { a: { f1: [550, 800], f2: [960, 1260], hi: { f1: [580, 860], f2: [950, 1250] }, ex: "[a] redonda e con espazo: coma nas tomas que deu por boas" },
+           e: { f1: [370, 655], f2: [1500, 2080], hi: { f1: [455, 700], f2: [1480, 2060] }, ex: "[e] con boca e lingua adiante: espazo vertical sen escurecer" },
+           i: { f1: [270, 510], f2: [1840, 2400], hi: { f1: [450, 680], f2: [1760, 2300] }, ex: "[i] con boca: mandíbula solta, lingua alta e adiante" },
+           o: { f1: [370, 700], f2: [730, 1150], hi: { f1: [465, 705], f2: [690, 1130] }, ex: "[o] redonda e con espazo, sen pechala cara a [u]" } },
       ref: { a: [670, 1120], e: [517, 1748], i: [384, 2053], o: [569, 936] },
       dDb: { model: "0 a +5 dB", ok: 5, near: 8 }, dR: { model: "≥ −3 dB", ok: -3, near: -8 },
       vib: { model: "≈ 5–6 Hz", ok: [4.8, 6.4], near: [4.3, 7.0] },
